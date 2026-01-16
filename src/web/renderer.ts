@@ -97,10 +97,17 @@ export class PrimordialRenderer {
     private sceneTex!: WebGLTexture;
     private glowTex!: WebGLTexture;
 
+    // Frustum Culling buffer (persistent to avoid re-allocation)
+    private visibleBuffer: Float32Array;
+    private readonly STRIDE = 16;
+
     constructor(canvas: HTMLCanvasElement) {
         const gl = canvas.getContext("webgl2", { antialias: false });
         if (!gl) throw new Error("WebGL 2 not supported");
         this.gl = gl;
+
+        // Pre-allocate buffer for visible cells (max 100k cells)
+        this.visibleBuffer = new Float32Array(100000 * this.STRIDE);
 
         this.program = this.createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
         this.bloomProgram = this.createProgram(BLOOM_VERTEX, BLOOM_FRAGMENT);
@@ -231,10 +238,39 @@ export class PrimordialRenderer {
     ) {
         const gl = this.gl;
 
-        // Upload instance data
+        // === FRUSTUM CULLING (CPU-side) ===
+        // Calculate world-space viewport bounds with margin
+        const halfWidth = (viewportSize[0] / 2) / zoom;
+        const halfHeight = (viewportSize[1] / 2) / zoom;
+        const margin = 50; // Extra margin to prevent popping at edges
+
+        const minX = cameraPos[0] - halfWidth - margin;
+        const maxX = cameraPos[0] + halfWidth + margin;
+        const minY = cameraPos[1] - halfHeight - margin;
+        const maxY = cameraPos[1] + halfHeight + margin;
+
+        let visibleCount = 0;
+        for (let i = 0; i < count; i++) {
+            const offset = i * this.STRIDE;
+            const x = cells[offset];
+            const y = cells[offset + 1];
+            const energy = cells[offset + 4];
+
+            // Skip inactive or out-of-bounds cells
+            if (energy <= 0) continue;
+            if (x < minX || x > maxX || y < minY || y > maxY) continue;
+
+            // Copy visible cell to visibleBuffer
+            const destOffset = visibleCount * this.STRIDE;
+            for (let j = 0; j < this.STRIDE; j++) {
+                this.visibleBuffer[destOffset + j] = cells[offset + j];
+            }
+            visibleCount++;
+        }
+
+        // Upload only visible cells
         gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
-        // Stride is 16
-        gl.bufferData(gl.ARRAY_BUFFER, cells.subarray(0, count * 16), gl.DYNAMIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, this.visibleBuffer.subarray(0, visibleCount * this.STRIDE), gl.DYNAMIC_DRAW);
 
         // 1. Scene Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
@@ -250,7 +286,7 @@ export class PrimordialRenderer {
         gl.uniform1f(gl.getUniformLocation(this.program, "uZoom"), zoom);
         gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 4.0);
 
-        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, visibleCount);
 
         // 2. Final / Bloom Addition Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
