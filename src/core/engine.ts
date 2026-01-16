@@ -237,9 +237,13 @@ export class Engine {
     }
 
     public getTelemetry() {
-        const histogram = new Int32Array(8);
+        const geneHistogram = new Int32Array(8);
+        const archetypeDist = new Int32Array(5); // [Avg, Pred, Prod, Tank, Speed]
+
         for (let i = 0; i < this.storage.maxCells; i++) {
             if (!this.storage.isActive[i]) continue;
+
+            // Gene histogram
             const genome = this.storage.getGenome(i);
             let dominant = 0;
             let maxVal = -1;
@@ -249,7 +253,11 @@ export class Engine {
                     dominant = g;
                 }
             }
-            histogram[dominant]++;
+            geneHistogram[dominant]++;
+
+            // Archetype distribution
+            const archIdx = this.storage.archetypes[i];
+            archetypeDist[archIdx]++;
         }
 
         return {
@@ -257,7 +265,8 @@ export class Engine {
             births: this.totalBirths,
             deaths: this.totalDeaths,
             generation: Math.floor(this.frameCount / 500),
-            histogram: Array.from(histogram)
+            histogram: Array.from(geneHistogram),
+            archetypes: Array.from(archetypeDist)
         };
     }
 

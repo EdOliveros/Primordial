@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import GameCanvas from './components/GameCanvas';
 import UIOverlay from './components/UIOverlay';
+import InfoPanel from './components/InfoPanel';
 import { SimulationController, Telemetry } from './core/SimulationController';
 
 const App: React.FC = () => {
@@ -47,6 +48,7 @@ const App: React.FC = () => {
                 onFollow={handleFollow}
                 onDismiss={handleDismiss}
             />
+            <InfoPanel telemetry={telemetry} />
         </div>
     );
 };

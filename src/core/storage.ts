@@ -25,6 +25,8 @@ export class CellStorage {
     public isActive: Uint8Array;
     // Visual Color Buffer (4 floats per cell: R, G, B, Glow)
     public visualColors: Float32Array;
+    // Archetype Buffer (1 byte per cell: 0=Avg, 1=Pred, 2=Prod, 3=Tank, 4=Speed)
+    public archetypes: Uint8Array;
 
     public activeCount: number = 0;
     private freeIndices: number[] = [];
@@ -42,6 +44,7 @@ export class CellStorage {
         this.generations = new Uint32Array(maxCells);
         this.isActive = new Uint8Array(maxCells);
         this.visualColors = new Float32Array(maxCells * 4);
+        this.archetypes = new Uint8Array(maxCells);
         for (let i = 0; i < maxCells; i++) {
             this.freeIndices.push(maxCells - 1 - i);
         }
@@ -89,11 +92,12 @@ export class CellStorage {
         // Determine dominant class (> 0.7)
         let maxVal = 0.7;
         let type = "average";
+        let archIdx = 0;
 
-        if (aggressiveness > maxVal) { maxVal = aggressiveness; type = "predator"; }
-        if (photosynthesis > maxVal) { maxVal = photosynthesis; type = "producer"; }
-        if (defense > maxVal) { maxVal = defense; type = "tank"; }
-        if (speed > maxVal) { maxVal = speed; type = "speedster"; }
+        if (aggressiveness > maxVal) { maxVal = aggressiveness; type = "predator"; archIdx = 1; }
+        if (photosynthesis > maxVal) { maxVal = photosynthesis; type = "producer"; archIdx = 2; }
+        if (defense > maxVal) { maxVal = defense; type = "tank"; archIdx = 3; }
+        if (speed > maxVal) { maxVal = speed; type = "speedster"; archIdx = 4; }
 
         if (type === "predator") { r = 1.0; g = 0.0; b = 0.2; glow = 1.0; }
         else if (type === "producer") { r = 0.2; g = 1.0; b = 0.0; glow = 1.0; }
@@ -104,6 +108,7 @@ export class CellStorage {
         this.visualColors[cIdx + 1] = g;
         this.visualColors[cIdx + 2] = b;
         this.visualColors[cIdx + 3] = glow;
+        this.archetypes[idx] = archIdx;
 
         return idx;
     }

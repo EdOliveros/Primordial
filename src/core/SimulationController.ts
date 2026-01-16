@@ -6,6 +6,7 @@ export interface Telemetry {
     deaths: number;
     generation: number;
     histogram: number[];
+    archetypes: number[];
 }
 
 export class SimulationController {
