@@ -39,12 +39,12 @@ export class SimulationController {
         this.canvas = canvas;
         this.renderer = new PrimordialRenderer(canvas);
         const gl = (this.renderer as any).gl as WebGL2RenderingContext;
-        this.gpuEngine = new GpuEngine(gl, 100000); // Support up to 100k
+        this.gpuEngine = new GpuEngine(gl, 1000000); // Scale to 1M cells
     }
 
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
         this.settings = settings;
-        const maxCells = 100000;
+        const maxCells = 1000000;
         const size = Math.ceil(Math.sqrt(maxCells));
 
         const posData = new Float32Array(size * size * 4);
@@ -136,7 +136,7 @@ export class SimulationController {
         this.renderer.render(
             [2000, 2000],
             this.gpuEngine.getStateTextures(),
-            100000, // Render all slots
+            1000000, // Render 1M instances
             this.cameraPos,
             this.zoom
         );

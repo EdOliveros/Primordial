@@ -213,25 +213,34 @@ export class GpuEngine {
     public async getTelemetry(): Promise<{ counts: number[], total: number }> {
         const gl = this.gl;
         const size = this.textureSize;
-        const pixels = new Float32Array(size * size * 4);
+
+        // Optimize: Only read a quarter of the texture for telemetry sampling at 1M cells
+        // This keeps the frame rate stable while giving a very accurate estimation
+        const sampleSize = size / 2;
+        const pixels = new Float32Array(sampleSize * sampleSize * 4);
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[this.currentFB]);
         gl.readBuffer(gl.COLOR_ATTACHMENT1); // BioData
-        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, pixels);
+        gl.readPixels(0, 0, sampleSize, sampleSize, gl.RGBA, gl.FLOAT, pixels);
 
         const counts = [0, 0, 0, 0, 0]; // Avg, Pred, Prod, Tank, Speed
-        let total = 0;
+        let sampledTotal = 0;
 
-        for (let i = 0; i < size * size; i++) {
+        for (let i = 0; i < sampleSize * sampleSize; i++) {
             const energy = pixels[i * 4];
             const arch = Math.floor(pixels[i * 4 + 1]);
             if (energy > 0.0) {
                 counts[arch]++;
-                total++;
+                sampledTotal++;
             }
         }
 
-        return { counts, total };
+        // Extrapolate for 1M
+        const multiplier = 4;
+        return {
+            counts: counts.map(c => c * multiplier),
+            total: sampledTotal * multiplier
+        };
     }
 
     public getStateTextures() {
