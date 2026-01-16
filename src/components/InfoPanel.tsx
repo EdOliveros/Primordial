@@ -66,4 +66,4 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry }) => {
     );
 };
 
-export default InfoPanel;
+export default React.memo(InfoPanel);

@@ -92,4 +92,4 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
     );
 };
 
-export default UIOverlay;
+export default React.memo(UIOverlay);

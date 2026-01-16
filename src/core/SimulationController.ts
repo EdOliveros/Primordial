@@ -157,8 +157,8 @@ export class SimulationController {
         this.onFrame(this.frameCount);
 
         this.fpsFrames++;
-        if (now > this.fpsTime + 1000) {
-            this.onFPS(this.fpsFrames);
+        if (now > this.fpsTime + 500) { // Update FPS 2x per second
+            this.onFPS(this.fpsFrames * 2); // Multiply by 2 since we're measuring half-second intervals
             this.fpsFrames = 0;
             this.fpsTime = now;
         }
@@ -181,8 +181,8 @@ export class SimulationController {
             this.zoom
         );
 
-        // 3. UI Updates
-        if (this.frameCount % 60 === 0) {
+        // 3. UI Updates (throttled to 2x per second)
+        if (this.frameCount % 120 === 0) {
             const tel = this.engine.getTelemetry();
             this.onTelemetry(tel);
         }
