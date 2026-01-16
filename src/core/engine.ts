@@ -51,7 +51,7 @@ export class Engine {
         this.frameCount++;
 
         // 1. Update Spatial Grid
-        this.spatialGrid.update(this.storage.dataBuffer, this.storage.isActive, this.storage.stride, this.storage.maxCells);
+        this.spatialGrid.update(this.storage.dataBuffer, this.storage.isActive, this.storage.stride);
 
         // 2. Identify Species
         if (this.frameCount === 1 || this.frameCount % 60 === 0) {
@@ -142,8 +142,9 @@ export class Engine {
             const dist = Math.sqrt(dx * dx + dy * dy);
             const maxSpeed = speedMultiplier * 100;
             if (dist > 0.1) {
-                this.storage.velocities[idx * 2] = (dx / dist) * maxSpeed;
-                this.storage.velocities[idx * 2 + 1] = (dy / dist) * maxSpeed;
+                const offset = idx * this.storage.stride;
+                this.storage.dataBuffer[offset + 2] = (dx / dist) * maxSpeed;
+                this.storage.dataBuffer[offset + 3] = (dy / dist) * maxSpeed;
             }
         } else if (bestTarget !== -1) {
             const tx = this.storage.getX(bestTarget);
