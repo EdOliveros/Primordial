@@ -93,6 +93,13 @@ export class SimulationController {
         }
     }
 
+    public onMinimapData: (data: Float32Array) => void = () => { };
+
+    public setCameraPos(x: number, y: number) {
+        this.cameraPos = [x, y];
+        this.targetZoom = this.zoom; // Stop any auto-zoom
+    }
+
     public pan(dx: number, dy: number) {
         // dx, dy are in screen pixels
         // Convert to world spaceDelta (divide by zoom)
@@ -175,12 +182,16 @@ export class SimulationController {
             const tel = await this.gpuEngine.getTelemetry();
             this.onTelemetry({
                 alive: tel.total,
-                births: 0, // Need to implement counters on GPU
+                births: 0,
                 deaths: 0,
                 generation: 0,
                 histogram: [],
                 archetypes: tel.counts
             });
+
+            // Also send minimap data
+            const miniData = await this.gpuEngine.getMinimapData();
+            this.onMinimapData(miniData);
         }
 
         this.animationFrameId = requestAnimationFrame(this.loop);

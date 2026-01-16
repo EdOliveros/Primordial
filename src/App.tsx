@@ -3,6 +3,7 @@ import GameCanvas from './components/GameCanvas';
 import UIOverlay from './components/UIOverlay';
 import InfoPanel from './components/InfoPanel';
 import StartScreen from './components/StartScreen';
+import Minimap from './components/Minimap';
 import { SimulationController, Telemetry } from './core/SimulationController';
 
 const App: React.FC = () => {
@@ -11,6 +12,7 @@ const App: React.FC = () => {
     const [frameCount, setFrameCount] = useState(0);
     const [inspectedCell, setInspectedCell] = useState<any | null>(null);
     const [isRunning, setIsRunning] = useState(false);
+    const [minimapData, setMinimapData] = useState<Float32Array | null>(null);
 
     const controllerRef = useRef<SimulationController | null>(null);
 
@@ -30,6 +32,10 @@ const App: React.FC = () => {
         setInspectedCell(null);
     };
 
+    const handleNavigate = (x: number, y: number) => {
+        controllerRef.current?.setCameraPos(x, y);
+    };
+
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <GameCanvas
@@ -37,6 +43,7 @@ const App: React.FC = () => {
                 onFPS={setFps}
                 onFrame={setFrameCount}
                 onInspector={setInspectedCell}
+                onMinimapData={setMinimapData}
                 controllerRef={controllerRef}
             />
 
@@ -55,6 +62,13 @@ const App: React.FC = () => {
                         onDismiss={handleDismiss}
                     />
                     <InfoPanel telemetry={telemetry} />
+                    <Minimap
+                        cameraPos={controllerRef.current?.cameraPos || [0, 0]}
+                        zoom={controllerRef.current?.zoom || 1}
+                        data={minimapData}
+                        onNavigate={handleNavigate}
+                        worldSize={2000}
+                    />
                 </>
             )}
         </div>

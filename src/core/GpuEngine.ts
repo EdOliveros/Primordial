@@ -243,6 +243,19 @@ export class GpuEngine {
         };
     }
 
+    public async getMinimapData(): Promise<Float32Array> {
+        const gl = this.gl;
+        const sampleSize = 64; // Low res for minimap
+        const pixels = new Float32Array(sampleSize * sampleSize * 4);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[this.currentFB]);
+        gl.readBuffer(gl.COLOR_ATTACHMENT0); // PosVel
+        // Reading only the top-left corner as a representative sample
+        gl.readPixels(0, 0, sampleSize, sampleSize, gl.RGBA, gl.FLOAT, pixels);
+
+        return pixels;
+    }
+
     public getStateTextures() {
         return {
             posVel: this.textures.posVel[this.currentFB],

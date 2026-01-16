@@ -554,3 +554,32 @@ input[type="range"]::-webkit-slider-thumb:hover {
     opacity: 0.6;
     margin: 0;
 }
+
+/* --- MINIMAP --- */
+#minimap-container {
+    position: absolute;
+    bottom: 60px;
+    right: 20px;
+    padding: 10px;
+    background: var(--bg-blur);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    z-index: 1000;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+#minimap-container canvas {
+    display: block;
+    border-radius: 4px;
+}
+
+.minimap-label {
+    font-size: 0.55rem;
+    letter-spacing: 2px;
+    text-align: center;
+    margin-top: 8px;
+    opacity: 0.5;
+    text-transform: uppercase;
+}
