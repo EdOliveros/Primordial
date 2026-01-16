@@ -28,16 +28,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
             controllerRef.current = controller;
 
-            const handleResize = () => {
-                controller.resize(window.innerWidth, window.innerHeight);
-            };
+            const resizeObserver = new ResizeObserver(entries => {
+                for (let entry of entries) {
+                    const width = entry.contentRect.width;
+                    const height = entry.contentRect.height;
+                    controller.resize(width, height);
+                }
+            });
 
-            window.addEventListener('resize', handleResize);
-            handleResize();
+            if (canvasRef.current.parentElement) {
+                resizeObserver.observe(canvasRef.current.parentElement);
+            }
 
             return () => {
                 controller.stop();
-                window.removeEventListener('resize', handleResize);
+                resizeObserver.disconnect();
             };
         }
     }, []);
@@ -53,7 +58,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             ref={canvasRef}
             id="simCanvas"
             onClick={handleClick}
-            style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                display: 'block',
+                cursor: 'crosshair',
+                zIndex: 0,
+                background: '#000'
+            }}
         />
     );
 };
