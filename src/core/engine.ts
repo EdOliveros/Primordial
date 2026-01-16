@@ -220,11 +220,17 @@ export class Engine {
             posData[ptr * 2] = this.storage.getX(i);
             posData[ptr * 2 + 1] = this.storage.getY(i);
 
-            const genome = this.storage.getGenome(i);
-            colorData[ptr * 4] = genome[1];
-            colorData[ptr * 4 + 1] = genome[2];
-            colorData[ptr * 4 + 2] = genome[4];
-            colorData[ptr * 4 + 3] = (this.storage.stats[i * 4 + 3] === -1.0) ? 1.0 : 0.0;
+            const cIdx = i * 4;
+            colorData[ptr * 4] = this.storage.visualColors[cIdx];
+            colorData[ptr * 4 + 1] = this.storage.visualColors[cIdx + 1];
+            colorData[ptr * 4 + 2] = this.storage.visualColors[cIdx + 2];
+            colorData[ptr * 4 + 3] = this.storage.visualColors[cIdx + 3];
+
+            // If highlighted (metadata slot used for transient effects)
+            if (this.storage.stats[i * 4 + 3] === -1.0) {
+                colorData[ptr * 4 + 3] = 1.0; // Force glow for reproduction/events
+            }
+
             ptr++;
         }
         return { positions: posData, colors: colorData, count };

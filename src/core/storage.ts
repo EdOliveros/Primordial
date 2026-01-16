@@ -23,6 +23,8 @@ export class CellStorage {
     public generations: Uint32Array;
     // Active Flag Buffer (1 byte per cell)
     public isActive: Uint8Array;
+    // Visual Color Buffer (4 floats per cell: R, G, B, Glow)
+    public visualColors: Float32Array;
 
     public activeCount: number = 0;
     private freeIndices: number[] = [];
@@ -39,6 +41,7 @@ export class CellStorage {
         this.stats = new Float32Array(maxCells * 4);
         this.generations = new Uint32Array(maxCells);
         this.isActive = new Uint8Array(maxCells);
+        this.visualColors = new Float32Array(maxCells * 4);
         for (let i = 0; i < maxCells; i++) {
             this.freeIndices.push(maxCells - 1 - i);
         }
@@ -72,6 +75,36 @@ export class CellStorage {
 
         this.isActive[idx] = 1;
         this.activeCount++;
+
+        // Calculate Visual Class Color
+        const cIdx = idx * 4;
+        const aggressiveness = genome[1];
+        const photosynthesis = genome[2];
+        const defense = genome[4];
+        const speed = genome[0];
+
+        // Default Gray
+        let r = 0.4, g = 0.4, b = 0.4, glow = 0.0;
+
+        // Determine dominant class (> 0.7)
+        let maxVal = 0.7;
+        let type = "average";
+
+        if (aggressiveness > maxVal) { maxVal = aggressiveness; type = "predator"; }
+        if (photosynthesis > maxVal) { maxVal = photosynthesis; type = "producer"; }
+        if (defense > maxVal) { maxVal = defense; type = "tank"; }
+        if (speed > maxVal) { maxVal = speed; type = "speedster"; }
+
+        if (type === "predator") { r = 1.0; g = 0.0; b = 0.2; glow = 1.0; }
+        else if (type === "producer") { r = 0.2; g = 1.0; b = 0.0; glow = 1.0; }
+        else if (type === "tank") { r = 0.0; g = 0.8; b = 1.0; glow = 1.0; }
+        else if (type === "speedster") { r = 1.0; g = 1.0; b = 1.0; glow = 1.0; }
+
+        this.visualColors[cIdx] = r;
+        this.visualColors[cIdx + 1] = g;
+        this.visualColors[cIdx + 2] = b;
+        this.visualColors[cIdx + 3] = glow;
+
         return idx;
     }
 
