@@ -7,7 +7,7 @@ export class SpatialGrid {
     private gridCount: Int32Array; // Stores number of cells in each grid cell
     private gridOffset: Int32Array; // Stores offset in the flat grid array
 
-    private readonly resolution: number = 50;
+    private readonly resolution: number = 100; // 5000 / 50 = 100 cells
     private readonly worldSize: number;
     private readonly maxCells: number;
 
@@ -28,7 +28,7 @@ export class SpatialGrid {
         this.gridCount.fill(0);
 
         // 1. Count cells per grid cell
-        for (let i = 0; i < maxCells; i++) {
+        for (let i = 0; i < this.maxCells; i++) {
             if (isActive[i] === 0) continue;
             const x = dataBuffer[i * stride];
             const y = dataBuffer[i * stride + 1];
@@ -49,7 +49,7 @@ export class SpatialGrid {
         }
 
         // 3. Fill the grid array
-        for (let i = 0; i < maxCells; i++) {
+        for (let i = 0; i < this.maxCells; i++) {
             if (isActive[i] === 0) continue;
             const x = dataBuffer[i * stride];
             const y = dataBuffer[i * stride + 1];

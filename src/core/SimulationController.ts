@@ -42,7 +42,7 @@ export class SimulationController {
         this.renderer = new PrimordialRenderer(canvas);
         const gl = (this.renderer as any).gl as WebGL2RenderingContext;
         this.gpuEngine = new GpuEngine(gl, 1000000);
-        this.engine = new Engine(2000, 100000); // Optimized for 100k as per prompt
+        this.engine = new Engine(5000, 100000); // Optimized for 100k as per prompt
     }
 
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
@@ -57,8 +57,8 @@ export class SimulationController {
         for (let i = 0; i < Math.min(settings.count, 100000); i++) {
             const genome = new Float32Array(8).map(() => Math.random());
             this.engine.storage.spawn(
-                Math.random() * 2000,
-                Math.random() * 2000,
+                Math.random() * 5000,
+                Math.random() * 5000,
                 genome
             );
         }
