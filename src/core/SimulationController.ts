@@ -130,8 +130,10 @@ export class SimulationController {
         this.cameraPos[1] = wy - vy / nextZoom;
     }
 
-    public inspect(_x: number, _y: number) {
-        // GPU picking implementation needed
+    public async inspect(worldX: number, worldY: number) {
+        const cell = await this.gpuEngine.pick(worldX, worldY);
+        this.inspectedCell = cell;
+        this.onInspector(cell);
     }
 
     public follow() {

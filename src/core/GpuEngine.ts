@@ -275,6 +275,79 @@ export class GpuEngine {
         };
     }
 
+    public async pick(worldX: number, worldY: number): Promise<any | null> {
+        const gl = this.gl;
+        const size = this.textureSize;
+
+        // Read back textures
+        // Optimization: We could read only a small region, but for 1M cells, a full read is often simpler 
+        // than calculating texture-space coordinates for a sub-region if we don't know the indices.
+        // Actually, since we need to find the NEAREST, we might as well sample the whole thing or a large enough patch.
+        // For now, let's read the whole textures (warning: slow, but OK for one-off inspection clicks).
+
+        const posVel = new Float32Array(size * size * 4);
+        const bioData = new Float32Array(size * size * 4);
+        const genome1 = new Float32Array(size * size * 4);
+        const genome2 = new Float32Array(size * size * 4);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffers[this.currentFB]);
+
+        gl.readBuffer(gl.COLOR_ATTACHMENT0);
+        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, posVel);
+
+        gl.readBuffer(gl.COLOR_ATTACHMENT1);
+        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, bioData);
+
+        // For genomes, we need to bind their textures to a temporary FB or use another way.
+        // Let's create a temporary FB for genome reading to avoid interrupting the main cycle too much.
+        const tempFB = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, tempFB);
+
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.genome1[0], 0);
+        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, genome1);
+
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.textures.genome2[0], 0);
+        gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, genome2);
+
+        gl.deleteFramebuffer(tempFB);
+
+        let nearestIdx = -1;
+        let minDist = 100 * 100; // 100px clicking radius
+
+        for (let i = 0; i < size * size; i++) {
+            const energy = bioData[i * 4];
+            if (energy <= 0.0) continue;
+
+            const px = posVel[i * 4];
+            const py = posVel[i * 4 + 1];
+
+            const dx = px - worldX;
+            const dy = py - worldY;
+            const d2 = dx * dx + dy * dy;
+
+            if (d2 < minDist) {
+                minDist = d2;
+                nearestIdx = i;
+            }
+        }
+
+        if (nearestIdx === -1) return null;
+
+        const p = nearestIdx * 4;
+        return {
+            idx: nearestIdx,
+            x: posVel[p],
+            y: posVel[p + 1],
+            energy: bioData[p],
+            arch: Math.floor(bioData[p + 1]),
+            age: bioData[p + 2],
+            genome: [
+                genome1[p], genome1[p + 1], genome1[p + 2], genome1[p + 3],
+                genome2[p], genome2[p + 1], genome2[p + 2], genome2[p + 3]
+            ]
+        };
+    }
+
     public async getMinimapData(): Promise<Float32Array> {
         const gl = this.gl;
         const sampleSize = 64; // Low res for minimap

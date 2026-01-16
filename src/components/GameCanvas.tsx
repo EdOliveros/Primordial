@@ -67,7 +67,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             lastMousePos.current = { x: e.clientX, y: e.clientY };
         } else if (e.button === 0) {
             if (controllerRef.current) {
-                controllerRef.current.inspect(e.clientX, e.clientY);
+                const rect = canvasRef.current?.getBoundingClientRect();
+                if (rect) {
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const worldX = controllerRef.current.cameraPos[0] + (x - rect.width / 2) / controllerRef.current.zoom;
+                    const worldY = controllerRef.current.cameraPos[1] + (y - rect.height / 2) / controllerRef.current.zoom;
+                    controllerRef.current.inspect(worldX, worldY);
+                }
             }
         }
     };
