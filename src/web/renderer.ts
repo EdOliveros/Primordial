@@ -224,7 +224,7 @@ export class PrimordialRenderer {
 
     render(
         viewportSize: [number, number],
-        dataBuffer: Float32Array,
+        cells: Float32Array,
         count: number,
         cameraPos: [number, number],
         zoom: number
@@ -234,7 +234,7 @@ export class PrimordialRenderer {
         // Upload instance data
         gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
         // Stride is 16
-        gl.bufferData(gl.ARRAY_BUFFER, dataBuffer.subarray(0, count * 16), gl.DYNAMIC_DRAW);
+        gl.bufferData(gl.ARRAY_BUFFER, cells.subarray(0, count * 16), gl.DYNAMIC_DRAW);
 
         // 1. Scene Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);

@@ -11,13 +11,14 @@ export class CellStorage {
     public readonly maxCells: number;
     public readonly stride = 16;
 
-    // One giant buffer for all data
-    public dataBuffer: Float32Array;
+    // Double buffers for Ping-Ponging
+    public cells!: Float32Array;
+    public nextCells!: Float32Array;
 
-    // Specialized buffers that remain separate for specific needs (Uint types)
-    public generations: Uint32Array;
-    public isActive: Uint8Array;
-    public visualColors: Float32Array;
+    // Specialized buffers
+    public generations!: Uint32Array;
+    public isActive!: Uint8Array;
+    public visualColors!: Float32Array;
 
     public activeCount: number = 0;
     private freeIndices: number[] = [];
@@ -28,11 +29,20 @@ export class CellStorage {
 
     constructor(maxCells: number) {
         this.maxCells = maxCells;
-        this.dataBuffer = new Float32Array(maxCells * this.stride);
+        this.init(maxCells);
+    }
+
+    /**
+     * Explicitly allocates/re-allocates the buffers.
+     */
+    public init(maxCells: number) {
+        this.cells = new Float32Array(maxCells * this.stride);
+        this.nextCells = new Float32Array(maxCells * this.stride);
         this.generations = new Uint32Array(maxCells);
         this.isActive = new Uint8Array(maxCells);
         this.visualColors = new Float32Array(maxCells * 4);
 
+        this.freeIndices = [];
         for (let i = 0; i < maxCells; i++) {
             this.freeIndices.push(maxCells - 1 - i);
         }
@@ -47,16 +57,23 @@ export class CellStorage {
         const idx = this.freeIndices.pop()!;
         const offset = idx * this.stride;
 
-        this.dataBuffer[offset] = x;
-        this.dataBuffer[offset + 1] = y;
-        this.dataBuffer[offset + 2] = 0; // vx
-        this.dataBuffer[offset + 3] = 0; // vy
+        this.cells[offset] = x;
+        this.nextCells[offset] = x;
+        this.cells[offset + 1] = y;
+        this.nextCells[offset + 1] = y;
+        this.cells[offset + 2] = 0; // vx
+        this.nextCells[offset + 2] = 0;
+        this.cells[offset + 3] = 0; // vy
+        this.nextCells[offset + 3] = 0;
 
-        this.dataBuffer[offset + 4] = 100.0; // Energy
-        this.dataBuffer[offset + 6] = 0.0;   // Age
+        this.cells[offset + 4] = 100.0; // Energy
+        this.nextCells[offset + 4] = 100.0;
+        this.cells[offset + 6] = 0.0;   // Age
+        this.nextCells[offset + 6] = 0.0;
 
         for (let i = 0; i < 8; i++) {
-            this.dataBuffer[offset + 8 + i] = genome[i];
+            this.cells[offset + 8 + i] = genome[i];
+            this.nextCells[offset + 8 + i] = genome[i];
         }
 
         this.generations[idx] = 1;
@@ -90,7 +107,8 @@ export class CellStorage {
         this.visualColors[cIdx + 2] = b;
         this.visualColors[cIdx + 3] = glow;
 
-        this.dataBuffer[offset + 5] = archIdx;
+        this.cells[offset + 5] = archIdx;
+        this.nextCells[offset + 5] = archIdx;
 
         return idx;
     }
@@ -102,10 +120,14 @@ export class CellStorage {
         this.activeCount--;
     }
 
-    getEnergy(idx: number): number { return this.dataBuffer[idx * this.stride + 4]; }
-    setEnergy(idx: number, val: number) { this.dataBuffer[idx * this.stride + 4] = val; }
+    getEnergy(idx: number): number { return this.cells[idx * this.stride + 4]; }
+    setEnergy(idx: number, val: number) {
+        const offset = idx * this.stride;
+        this.cells[offset + 4] = val;
+        this.nextCells[offset + 4] = val;
+    }
     getGenome(idx: number): Float32Array {
-        return this.dataBuffer.subarray(idx * this.stride + 8, idx * this.stride + 16);
+        return this.cells.subarray(idx * this.stride + 8, idx * this.stride + 16);
     }
 
     reproduce(parentIdx: number): number {
@@ -119,8 +141,8 @@ export class CellStorage {
             childGenome[i] = Math.max(0, Math.min(1, parentGenome[i] + mutation));
         }
 
-        const x = this.dataBuffer[offset] + (Math.random() * 10 - 5);
-        const y = this.dataBuffer[offset + 1] + (Math.random() * 10 - 5);
+        const x = this.cells[offset] + (Math.random() * 10 - 5);
+        const y = this.cells[offset + 1] + (Math.random() * 10 - 5);
 
         const childIdx = this.spawn(x, y, childGenome);
         if (childIdx !== -1) {
@@ -129,19 +151,25 @@ export class CellStorage {
         return childIdx;
     }
 
-    getX(idx: number): number { return this.dataBuffer[idx * this.stride]; }
-    getY(idx: number): number { return this.dataBuffer[idx * this.stride + 1]; }
+    getX(idx: number): number { return this.cells[idx * this.stride]; }
+    getY(idx: number): number { return this.cells[idx * this.stride + 1]; }
 
     updatePositions(dt: number) {
         for (let i = 0; i < this.maxCells; i++) {
             if (this.isActive[i]) {
                 const offset = i * this.stride;
                 // Apply friction
-                this.dataBuffer[offset + 2] *= this.friction;
-                this.dataBuffer[offset + 3] *= this.friction;
+                this.cells[offset + 2] *= this.friction;
+                this.cells[offset + 3] *= this.friction;
 
-                this.dataBuffer[offset] += this.dataBuffer[offset + 2] * dt;
-                this.dataBuffer[offset + 1] += this.dataBuffer[offset + 3] * dt;
+                this.cells[offset] += this.cells[offset + 2] * dt;
+                this.cells[offset + 1] += this.cells[offset + 3] * dt;
+
+                // Keep nextCells in sync for manual updates if needed
+                this.nextCells[offset] = this.cells[offset];
+                this.nextCells[offset + 1] = this.cells[offset + 1];
+                this.nextCells[offset + 2] = this.cells[offset + 2];
+                this.nextCells[offset + 3] = this.cells[offset + 3];
             }
         }
     }

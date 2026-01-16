@@ -140,10 +140,10 @@ export class SimulationController {
         this.engine.update(dt);
 
         // 2. Render via WebGL Instanced Attributes (Step 2)
-        // Passes the CPU-side dataBuffer directly for a single draw call.
+        // Passes the CPU-side cells buffer directly for a single draw call.
         this.renderer.render(
             [this.canvas.width, this.canvas.height],
-            this.engine.storage.dataBuffer,
+            this.engine.storage.cells,
             this.engine.storage.maxCells,
             this.cameraPos,
             this.zoom

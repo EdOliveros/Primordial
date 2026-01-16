@@ -34,6 +34,13 @@ export class Engine {
         this.analytics = new Analytics();
     }
 
+    public init(worldSize: number, maxCells: number) {
+        this.worldSize = worldSize;
+        this.storage.init(maxCells);
+        this.spatialGrid = new SpatialGrid(worldSize, maxCells);
+        this.environment = new Environment(worldSize);
+    }
+
     applySettings(settings: any) {
         if (settings.mutationRate !== undefined) {
             this.storage.globalMutationRate = settings.mutationRate;
@@ -47,11 +54,11 @@ export class Engine {
     }
 
     update(dt: number) {
-        if (!this.storage || !this.storage.dataBuffer) return;
+        if (!this.storage || !this.storage.cells) return;
         this.frameCount++;
 
         // 1. Update Spatial Grid
-        this.spatialGrid.update(this.storage.dataBuffer, this.storage.isActive, this.storage.stride);
+        this.spatialGrid.update(this.storage.cells, this.storage.isActive, this.storage.stride);
 
         // 2. Identify Species
         if (this.frameCount === 1 || this.frameCount % 60 === 0) {
@@ -74,6 +81,11 @@ export class Engine {
         // 4. Move Cells
         this.storage.updatePositions(dt);
         this.boundaryCheck();
+
+        // 5. Swap Buffers (Ping-Pong)
+        const temp = this.storage.cells;
+        this.storage.cells = this.storage.nextCells;
+        this.storage.nextCells = temp;
     }
 
     private processCell(idx: number, dt: number) {
@@ -92,8 +104,8 @@ export class Engine {
 
         // --- 1. Thermodynamics ---
         const offset = idx * this.storage.stride;
-        const vx = this.storage.dataBuffer[offset + 2];
-        const vy = this.storage.dataBuffer[offset + 3];
+        const vx = this.storage.cells[offset + 2];
+        const vy = this.storage.cells[offset + 3];
         const currentSpeedSq = vx * vx + vy * vy;
         const energyCost = (currentSpeedSq * 0.5 + Math.pow(size, 3) * 1 + visionRange * 0.005) * dt;
         energy -= energyCost;
@@ -143,8 +155,8 @@ export class Engine {
             const maxSpeed = speedMultiplier * 100;
             if (dist > 0.1) {
                 const offset = idx * this.storage.stride;
-                this.storage.dataBuffer[offset + 2] = (dx / dist) * maxSpeed;
-                this.storage.dataBuffer[offset + 3] = (dy / dist) * maxSpeed;
+                this.storage.cells[offset + 2] = (dx / dist) * maxSpeed;
+                this.storage.cells[offset + 3] = (dy / dist) * maxSpeed;
             }
         } else if (bestTarget !== -1) {
             const tx = this.storage.getX(bestTarget);
@@ -155,8 +167,8 @@ export class Engine {
             const maxSpeed = speedMultiplier * 100;
             if (dist > 0.1) {
                 const offset = idx * this.storage.stride;
-                this.storage.dataBuffer[offset + 2] = (dx / dist) * maxSpeed;
-                this.storage.dataBuffer[offset + 3] = (dy / dist) * maxSpeed;
+                this.storage.cells[offset + 2] = (dx / dist) * maxSpeed;
+                this.storage.cells[offset + 3] = (dy / dist) * maxSpeed;
             }
 
             if (dist < (size * 10 + this.storage.getGenome(bestTarget)[3] * 10)) {
@@ -174,9 +186,9 @@ export class Engine {
             }
             energy -= 80;
             const offset = idx * this.storage.stride;
-            this.storage.dataBuffer[offset + 7] = -1.0;
-        } else if (this.storage.dataBuffer[idx * this.storage.stride + 7] === -1.0) {
-            this.storage.dataBuffer[idx * this.storage.stride + 7] = 0.0;
+            this.storage.cells[offset + 7] = -1.0;
+        } else if (this.storage.cells[idx * this.storage.stride + 7] === -1.0) {
+            this.storage.cells[idx * this.storage.stride + 7] = 0.0;
         }
 
         if (energy <= 0) {
@@ -188,15 +200,15 @@ export class Engine {
 
     private wander(idx: number, speedMult: number) {
         const offset = idx * this.storage.stride;
-        this.storage.dataBuffer[offset + 2] += (Math.random() - 0.5) * 10;
-        this.storage.dataBuffer[offset + 3] += (Math.random() - 0.5) * 10;
+        this.storage.cells[offset + 2] += (Math.random() - 0.5) * 10;
+        this.storage.cells[offset + 3] += (Math.random() - 0.5) * 10;
         const maxSpeed = speedMult * 50;
-        const vx = this.storage.dataBuffer[offset + 2];
-        const vy = this.storage.dataBuffer[offset + 3];
+        const vx = this.storage.cells[offset + 2];
+        const vy = this.storage.cells[offset + 3];
         const speed = Math.sqrt(vx * vx + vy * vy);
         if (speed > maxSpeed && speed > 0) {
-            this.storage.dataBuffer[offset + 2] = (vx / speed) * maxSpeed;
-            this.storage.dataBuffer[offset + 3] = (vy / speed) * maxSpeed;
+            this.storage.cells[offset + 2] = (vx / speed) * maxSpeed;
+            this.storage.cells[offset + 3] = (vy / speed) * maxSpeed;
         }
     }
 
@@ -207,7 +219,7 @@ export class Engine {
             if (!this.storage.isActive[i]) continue;
             const genome = this.storage.getGenome(i);
             const speciesId = this.speciesTracker.identify(genome);
-            this.storage.dataBuffer[i * this.storage.stride + 7] = speciesId;
+            this.storage.cells[i * this.storage.stride + 7] = speciesId;
             currentCounts[speciesId] = (currentCounts[speciesId] || 0) + 1;
         }
         this.speciesTracker.prune();
@@ -233,7 +245,7 @@ export class Engine {
             colorData[ptr * 4 + 3] = this.storage.visualColors[cIdx + 3];
 
             // If highlighted (metadata slot used for transient effects)
-            if (this.storage.dataBuffer[i * this.storage.stride + 7] === -1.0) {
+            if (this.storage.cells[i * this.storage.stride + 7] === -1.0) {
                 colorData[ptr * 4 + 3] = 1.0; // Force glow for reproduction/events
             }
 
@@ -262,7 +274,7 @@ export class Engine {
             geneHistogram[dominant]++;
 
             // Archetype distribution
-            const archIdx = this.storage.dataBuffer[i * this.storage.stride + 5];
+            const archIdx = this.storage.cells[i * this.storage.stride + 5];
             archetypeDist[Math.floor(archIdx)]++;
         }
 
@@ -313,16 +325,16 @@ export class Engine {
             let y = this.storage.getY(i);
 
             if (this.environment.isBlocked(x, y)) {
-                this.storage.dataBuffer[i * this.storage.stride + 2] *= -1.2;
-                this.storage.dataBuffer[i * this.storage.stride + 3] *= -1.2;
-                this.storage.dataBuffer[i * this.storage.stride] += this.storage.dataBuffer[i * this.storage.stride + 2] * 0.1;
-                this.storage.dataBuffer[i * this.storage.stride + 1] += this.storage.dataBuffer[i * this.storage.stride + 3] * 0.1;
+                this.storage.cells[i * this.storage.stride + 2] *= -1.2;
+                this.storage.cells[i * this.storage.stride + 3] *= -1.2;
+                this.storage.cells[i * this.storage.stride] += this.storage.cells[i * this.storage.stride + 2] * 0.1;
+                this.storage.cells[i * this.storage.stride + 1] += this.storage.cells[i * this.storage.stride + 3] * 0.1;
             }
 
-            if (x < 0) this.storage.dataBuffer[i * this.storage.stride] = this.worldSize;
-            if (x > this.worldSize) this.storage.dataBuffer[i * this.storage.stride] = 0;
-            if (y < 0) this.storage.dataBuffer[i * this.storage.stride + 1] = this.worldSize;
-            if (y > this.worldSize) this.storage.dataBuffer[i * this.storage.stride + 1] = 0;
+            if (x < 0) this.storage.cells[i * this.storage.stride] = this.worldSize;
+            if (x > this.worldSize) this.storage.cells[i * this.storage.stride] = 0;
+            if (y < 0) this.storage.cells[i * this.storage.stride + 1] = this.worldSize;
+            if (y > this.worldSize) this.storage.cells[i * this.storage.stride + 1] = 0;
         }
     }
 }
