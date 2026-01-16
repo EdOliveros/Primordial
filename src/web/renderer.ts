@@ -1,7 +1,9 @@
 export const VERTEX_SHADER = `#version 300 es
 layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aInstancePos;
-layout(location = 2) in vec4 aInstanceColor; // r, g, b, glow
+
+uniform sampler2D uPosTex;
+uniform sampler2D uBioTex;
+uniform int uTexSize;
 
 uniform vec2 uWorldSize;
 uniform float uCellSize;
@@ -12,35 +14,48 @@ out vec4 vColor;
 out float vGlow;
 
 void main() {
-    vColor = vec4(aInstanceColor.rgb, 1.0);
-    vGlow = aInstanceColor.a;
+    int x = gl_InstanceID % uTexSize;
+    int y = gl_InstanceID / uTexSize;
+    vec2 uv = (vec2(float(x), float(y)) + 0.5) / float(uTexSize);
+
+    vec4 posVel = texture(uPosTex, uv);
+    vec4 bio = texture(uBioTex, uv);
+
+    // Filter out inactive cells (energy <= 0)
+    if (bio.x <= 0.0) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // Off-screen
+        return;
+    }
+
+    // Determine color based on archetype index (stored in bio.y)
+    int arch = int(bio.y);
+    vec3 color = vec3(0.4); // Default gray
+    float glow = 0.0;
     
-    // Position cell in world space
-    vec2 worldPos = aPos * uCellSize + aInstancePos;
+    if (arch == 1) { color = vec3(1.0, 0.0, 0.2); glow = 1.0; } // Pred
+    if (arch == 2) { color = vec3(0.2, 1.0, 0.0); glow = 1.0; } // Prod
+    if (arch == 3) { color = vec3(0.0, 0.8, 1.0); glow = 1.0; } // Tank
+    if (arch == 4) { color = vec3(1.0, 1.0, 1.0); glow = 1.0; } // Speed
+
+    vColor = vec4(color, 1.0);
+    vGlow = glow;
     
-    // Apply camera and zoom
-    // cameraPos is the world-space point at the center of the screen
+    vec2 worldPos = aPos * uCellSize + posVel.xy;
     vec2 viewPos = (worldPos - uCameraPos) * uZoom;
-    
-    // Normalize to [-1, 1]
-    // uWorldSize * 0.5 is the coordinate radius from center to edge
     vec2 normalized = viewPos / (uWorldSize * 0.5); 
     gl_Position = vec4(normalized.x, -normalized.y, 0.0, 1.0);
 }
 `;
 
 export const FRAGMENT_SHADER = `#version 300 es
+// ... (stays the same as before, but I'll redefine it for completeness in the chunk)
 precision highp float;
-
 in vec4 vColor;
 in float vGlow;
-
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outGlow;
-
 void main() {
     outColor = vColor;
-    // Only output to glow attachment if vGlow > 0
     outGlow = vColor * vGlow;
 }
 `;
@@ -168,8 +183,7 @@ export class PrimordialRenderer {
 
     render(
         worldSize: [number, number],
-        positions: Float32Array,
-        colors: Float32Array,
+        stateTextures: { posVel: WebGLTexture, bioData: WebGLTexture, size: number },
         count: number,
         cameraPos: [number, number],
         zoom: number
@@ -185,11 +199,16 @@ export class PrimordialRenderer {
         gl.useProgram(this.program);
         gl.bindVertexArray(this.quadVAO);
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instancePosBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, positions.subarray(0, count * 2), gl.DYNAMIC_DRAW);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceColorBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, colors.subarray(0, count * 4), gl.DYNAMIC_DRAW);
+        // Bind Textures
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, stateTextures.posVel);
+        gl.uniform1i(gl.getUniformLocation(this.program, "uPosTex"), 0);
 
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, stateTextures.bioData);
+        gl.uniform1i(gl.getUniformLocation(this.program, "uBioTex"), 1);
+
+        gl.uniform1i(gl.getUniformLocation(this.program, "uTexSize"), stateTextures.size);
         gl.uniform2f(gl.getUniformLocation(this.program, "uWorldSize"), worldSize[0], worldSize[1]);
         gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 3.0);
         gl.uniform2f(gl.getUniformLocation(this.program, "uCameraPos"), cameraPos[0], cameraPos[1]);
