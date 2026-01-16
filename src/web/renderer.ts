@@ -132,17 +132,26 @@ export class PrimordialRenderer {
         const vs = gl.createShader(gl.VERTEX_SHADER)!;
         gl.shaderSource(vs, vsSource);
         gl.compileShader(vs);
-        if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) console.error("VS:", gl.getShaderInfoLog(vs));
+        if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+            console.error("Vertex Shader Error:", gl.getShaderInfoLog(vs));
+        }
 
         const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
         gl.shaderSource(fs, fsSource);
         gl.compileShader(fs);
-        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) console.error("FS:", gl.getShaderInfoLog(fs));
+        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+            console.error("Fragment Shader Error:", gl.getShaderInfoLog(fs));
+        }
 
         const prog = gl.createProgram()!;
         gl.attachShader(prog, vs);
         gl.attachShader(prog, fs);
         gl.linkProgram(prog);
+
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+            console.error("Program Link Error:", gl.getProgramInfoLog(prog));
+        }
+
         return prog;
     }
 
@@ -196,6 +205,23 @@ export class PrimordialRenderer {
         return tex;
     }
 
+    public resize(w: number, h: number) {
+        const gl = this.gl;
+
+        // Re-create textures if size changed
+        if (this.sceneTex) gl.deleteTexture(this.sceneTex);
+        if (this.glowTex) gl.deleteTexture(this.glowTex);
+
+        this.sceneTex = this.createTexture(w, h);
+        this.glowTex = this.createTexture(w, h);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneTex, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.glowTex, 0);
+        gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+
     render(
         viewportSize: [number, number],
         dataBuffer: Float32Array,
@@ -207,7 +233,6 @@ export class PrimordialRenderer {
 
         // Upload instance data
         gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
-        // We only upload the first 'count' cells to save bandwidth
         // Stride is 16
         gl.bufferData(gl.ARRAY_BUFFER, dataBuffer.subarray(0, count * 16), gl.DYNAMIC_DRAW);
 
@@ -231,6 +256,7 @@ export class PrimordialRenderer {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.useProgram(this.bloomProgram);
+        gl.bindVertexArray(this.quadVAO); // Re-bind for aPos
 
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);

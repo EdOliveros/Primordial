@@ -1,5 +1,4 @@
 import { PrimordialRenderer } from "../web/renderer";
-import { GpuEngine } from "./GpuEngine";
 import { Engine } from "./engine";
 
 export interface Telemetry {
@@ -14,7 +13,6 @@ export interface Telemetry {
 export class SimulationController {
     private canvas: HTMLCanvasElement;
     private renderer: PrimordialRenderer;
-    private gpuEngine: GpuEngine;
     private engine: Engine; // CPU Engine for high-perf Step 2
     private isSimulationRunning = false;
     private frameCount = 0;
@@ -22,14 +20,12 @@ export class SimulationController {
     private fpsFrames = 0;
     private fpsTime = performance.now();
 
-    private settings = { mutation: 1.0, food: 1.0, friction: 0.98 };
-
     public onTelemetry: (tel: Telemetry) => void = () => { };
     public onFPS: (fps: number) => void = () => { };
     public onFrame: (frameCount: number) => void = () => { };
     public onInspector: (cell: any) => void = () => { };
 
-    public cameraPos: [number, number] = [1000, 1000];
+    public cameraPos: [number, number] = [2500, 2500]; // Center of 5000x5000 world
     public zoom = 1.0;
     public targetZoom = 1.0;
     public followingIdx: number | null = null;
@@ -40,13 +36,12 @@ export class SimulationController {
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
         this.renderer = new PrimordialRenderer(canvas);
-        const gl = (this.renderer as any).gl as WebGL2RenderingContext;
-        this.gpuEngine = new GpuEngine(gl, 1000000);
-        this.engine = new Engine(5000, 100000); // Optimized for 100k as per prompt
+        // Ensure renderer starts with correct size
+        this.renderer.resize(canvas.width, canvas.height);
+        this.engine = new Engine(5000, 100000);
     }
 
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
-        this.settings = settings;
         this.engine.applySettings({
             mutationRate: settings.mutation,
             foodAbundance: settings.food,
@@ -166,5 +161,6 @@ export class SimulationController {
     public resize(width: number, height: number) {
         this.canvas.width = width;
         this.canvas.height = height;
+        this.renderer.resize(width, height);
     }
 }
