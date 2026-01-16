@@ -158,17 +158,49 @@ export class GpuEngine {
     }
 
     public uploadData(
-        positions: Float32Array, // x, y, vx, vy
-        bioData: Float32Array,   // energy, archIdx, age, 0
-        genomes1: Float32Array,  // g1-g4
-        genomes2: Float32Array   // g5-g8
+        buffer: Float32Array,
+        stride: number
     ) {
         const size = this.textureSize;
+        const totalPixels = size * size;
 
-        this.updateTex(this.textures.posVel[this.currentFB], size, positions);
+        // Extract and upload each part
+        // We assume the buffer is packed according to the stride (16)
+
+        const posVel = new Float32Array(totalPixels * 4);
+        const bioData = new Float32Array(totalPixels * 4);
+        const genome1 = new Float32Array(totalPixels * 4);
+        const genome2 = new Float32Array(totalPixels * 4);
+
+        for (let i = 0; i < totalPixels; i++) {
+            const offset = i * stride;
+            const p = i * 4;
+
+            posVel[p] = buffer[offset];
+            posVel[p + 1] = buffer[offset + 1];
+            posVel[p + 2] = buffer[offset + 2];
+            posVel[p + 3] = buffer[offset + 3];
+
+            bioData[p] = buffer[offset + 4];
+            bioData[p + 1] = buffer[offset + 5];
+            bioData[p + 2] = buffer[offset + 6];
+            bioData[p + 3] = buffer[offset + 7];
+
+            genome1[p] = buffer[offset + 8];
+            genome1[p + 1] = buffer[offset + 9];
+            genome1[p + 2] = buffer[offset + 10];
+            genome1[p + 3] = buffer[offset + 11];
+
+            genome2[p] = buffer[offset + 12];
+            genome2[p + 1] = buffer[offset + 13];
+            genome2[p + 2] = buffer[offset + 14];
+            genome2[p + 3] = buffer[offset + 15];
+        }
+
+        this.updateTex(this.textures.posVel[this.currentFB], size, posVel);
         this.updateTex(this.textures.bioData[this.currentFB], size, bioData);
-        this.updateTex(this.textures.genome1[0], size, genomes1);
-        this.updateTex(this.textures.genome2[0], size, genomes2);
+        this.updateTex(this.textures.genome1[0], size, genome1);
+        this.updateTex(this.textures.genome2[0], size, genome2);
     }
 
     private updateTex(tex: WebGLTexture, size: number, data: Float32Array) {

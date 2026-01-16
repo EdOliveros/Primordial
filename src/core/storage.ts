@@ -1,32 +1,23 @@
 /**
- * CellStorage implements a Struct-of-Arrays (SoA) data structure for high-performance
- * processing of massive numbers of cells.
+ * CellStorage implements a single contiguous Float32Array (AoS) 
+ * for maximum CPU cache performance.
  * 
- * Memory Layout (Float32Array):
- * - positions: [x1, y1, x2, y2, ...]
- * - velocities: [vx1, vy1, vx2, vy2, ...]
- * - genomes: [g1_1, g1_2, ... g1_8, g2_1, ...] (8 genes per cell)
- * - stats: [health1, age1, health2, age2, ...]
+ * Layout per Cell (16 floats stride):
+ * 0: x, 1: y, 2: vx, 3: vy
+ * 4: energy, 5: archIdx, 6: age, 7: speciesId/metadata
+ * 8-15: genome (8 genes)
  */
 export class CellStorage {
     public readonly maxCells: number;
+    public readonly stride = 16;
 
-    // Position Buffer (2 floats per cell: x, y)
-    public positions: Float32Array;
-    // Velocity Buffer (2 floats per cell: vx, vy)
-    public velocities: Float32Array;
-    // Genome Buffer (8 floats per cell: Speed, Aggressiveness, Photosynthesis, Size, Defense, Vision, Mutability, Lifespan)
-    public genomes: Float32Array;
-    // Stats Buffer (4 floats per cell: Health, Energy, Age, Metadata)
-    public stats: Float32Array;
-    // Generation Buffer (Uint32)
+    // One giant buffer for all data
+    public dataBuffer: Float32Array;
+
+    // Specialized buffers that remain separate for specific needs (Uint types)
     public generations: Uint32Array;
-    // Active Flag Buffer (1 byte per cell)
     public isActive: Uint8Array;
-    // Visual Color Buffer (4 floats per cell: R, G, B, Glow)
     public visualColors: Float32Array;
-    // Archetype Buffer (1 byte per cell: 0=Avg, 1=Pred, 2=Prod, 3=Tank, 4=Speed)
-    public archetypes: Uint8Array;
 
     public activeCount: number = 0;
     private freeIndices: number[] = [];
@@ -37,14 +28,11 @@ export class CellStorage {
 
     constructor(maxCells: number) {
         this.maxCells = maxCells;
-        this.positions = new Float32Array(maxCells * 2);
-        this.velocities = new Float32Array(maxCells * 2);
-        this.genomes = new Float32Array(maxCells * 8);
-        this.stats = new Float32Array(maxCells * 4);
+        this.dataBuffer = new Float32Array(maxCells * this.stride);
         this.generations = new Uint32Array(maxCells);
         this.isActive = new Uint8Array(maxCells);
         this.visualColors = new Float32Array(maxCells * 4);
-        this.archetypes = new Uint8Array(maxCells);
+
         for (let i = 0; i < maxCells; i++) {
             this.freeIndices.push(maxCells - 1 - i);
         }
@@ -57,25 +45,21 @@ export class CellStorage {
         if (this.freeIndices.length === 0) return -1;
 
         const idx = this.freeIndices.pop()!;
-        const pIdx = idx * 2;
-        const gIdx = idx * 8;
-        const sIdx = idx * 4;
+        const offset = idx * this.stride;
 
-        this.positions[pIdx] = x;
-        this.positions[pIdx + 1] = y;
-        this.velocities[pIdx] = 0;
-        this.velocities[pIdx + 1] = 0;
+        this.dataBuffer[offset] = x;
+        this.dataBuffer[offset + 1] = y;
+        this.dataBuffer[offset + 2] = 0; // vx
+        this.dataBuffer[offset + 3] = 0; // vy
+
+        this.dataBuffer[offset + 4] = 100.0; // Energy
+        this.dataBuffer[offset + 6] = 0.0;   // Age
 
         for (let i = 0; i < 8; i++) {
-            this.genomes[gIdx + i] = genome[i];
+            this.dataBuffer[offset + 8 + i] = genome[i];
         }
 
-        this.stats[sIdx] = 100.0;     // Health
-        this.stats[sIdx + 1] = 100.0; // Energy
-        this.stats[sIdx + 2] = 0.0;   // Age
-        this.stats[sIdx + 3] = 0.0;   // Metadata
         this.generations[idx] = 1;
-
         this.isActive[idx] = 1;
         this.activeCount++;
 
@@ -86,10 +70,7 @@ export class CellStorage {
         const defense = genome[4];
         const speed = genome[0];
 
-        // Default Gray
         let r = 0.4, g = 0.4, b = 0.4, glow = 0.0;
-
-        // Determine dominant class (> 0.7)
         let maxVal = 0.7;
         let type = "average";
         let archIdx = 0;
@@ -108,7 +89,8 @@ export class CellStorage {
         this.visualColors[cIdx + 1] = g;
         this.visualColors[cIdx + 2] = b;
         this.visualColors[cIdx + 3] = glow;
-        this.archetypes[idx] = archIdx;
+
+        this.dataBuffer[offset + 5] = archIdx;
 
         return idx;
     }
@@ -120,11 +102,14 @@ export class CellStorage {
         this.activeCount--;
     }
 
-    getEnergy(idx: number): number { return this.stats[idx * 4 + 1]; }
-    setEnergy(idx: number, val: number) { this.stats[idx * 4 + 1] = val; }
-    getGenome(idx: number): Float32Array { return this.genomes.subarray(idx * 8, idx * 8 + 8); }
+    getEnergy(idx: number): number { return this.dataBuffer[idx * this.stride + 4]; }
+    setEnergy(idx: number, val: number) { this.dataBuffer[idx * this.stride + 4] = val; }
+    getGenome(idx: number): Float32Array {
+        return this.dataBuffer.subarray(idx * this.stride + 8, idx * this.stride + 16);
+    }
 
     reproduce(parentIdx: number): number {
+        const offset = parentIdx * this.stride;
         const parentGenome = this.getGenome(parentIdx);
         const childGenome = new Float32Array(8);
         const mutability = parentGenome[6];
@@ -134,8 +119,8 @@ export class CellStorage {
             childGenome[i] = Math.max(0, Math.min(1, parentGenome[i] + mutation));
         }
 
-        const x = this.getX(parentIdx) + (Math.random() * 10 - 5);
-        const y = this.getY(parentIdx) + (Math.random() * 10 - 5);
+        const x = this.dataBuffer[offset] + (Math.random() * 10 - 5);
+        const y = this.dataBuffer[offset + 1] + (Math.random() * 10 - 5);
 
         const childIdx = this.spawn(x, y, childGenome);
         if (childIdx !== -1) {
@@ -144,27 +129,19 @@ export class CellStorage {
         return childIdx;
     }
 
-    /**
-     * Efficiently get the X position of a cell.
-     */
-    getX(idx: number): number { return this.positions[idx * 2]; }
-    /**
-     * Efficiently get the Y position of a cell.
-     */
-    getY(idx: number): number { return this.positions[idx * 2 + 1]; }
+    getX(idx: number): number { return this.dataBuffer[idx * this.stride]; }
+    getY(idx: number): number { return this.dataBuffer[idx * this.stride + 1]; }
 
-    /**
-     * Example of a batch update (Simulating movement)
-     */
     updatePositions(dt: number) {
         for (let i = 0; i < this.maxCells; i++) {
             if (this.isActive[i]) {
+                const offset = i * this.stride;
                 // Apply friction
-                this.velocities[i * 2] *= this.friction;
-                this.velocities[i * 2 + 1] *= this.friction;
+                this.dataBuffer[offset + 2] *= this.friction;
+                this.dataBuffer[offset + 3] *= this.friction;
 
-                this.positions[i * 2] += this.velocities[i * 2] * dt;
-                this.positions[i * 2 + 1] += this.velocities[i * 2 + 1] * dt;
+                this.dataBuffer[offset] += this.dataBuffer[offset + 2] * dt;
+                this.dataBuffer[offset + 1] += this.dataBuffer[offset + 3] * dt;
             }
         }
     }

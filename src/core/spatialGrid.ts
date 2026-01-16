@@ -24,14 +24,14 @@ export class SpatialGrid {
     /**
      * Rebuilds the grid based on current cell positions.
      */
-    update(positions: Float32Array, isActive: Uint8Array, maxCells: number) {
+    update(dataBuffer: Float32Array, isActive: Uint8Array, stride: number) {
         this.gridCount.fill(0);
 
         // 1. Count cells per grid cell
         for (let i = 0; i < maxCells; i++) {
             if (isActive[i] === 0) continue;
-            const x = positions[i * 2];
-            const y = positions[i * 2 + 1];
+            const x = dataBuffer[i * stride];
+            const y = dataBuffer[i * stride + 1];
             const gx = Math.floor((x / this.worldSize) * this.resolution);
             const gy = Math.floor((y / this.worldSize) * this.resolution);
 
@@ -51,8 +51,8 @@ export class SpatialGrid {
         // 3. Fill the grid array
         for (let i = 0; i < maxCells; i++) {
             if (isActive[i] === 0) continue;
-            const x = positions[i * 2];
-            const y = positions[i * 2 + 1];
+            const x = dataBuffer[i * stride];
+            const y = dataBuffer[i * stride + 1];
             const gx = Math.floor((x / this.worldSize) * this.resolution);
             const gy = Math.floor((y / this.worldSize) * this.resolution);
 

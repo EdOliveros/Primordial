@@ -45,43 +45,44 @@ export class SimulationController {
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
         this.settings = settings;
         const maxCells = 1000000;
+        const stride = 16;
         const size = Math.ceil(Math.sqrt(maxCells));
 
-        const posData = new Float32Array(size * size * 4);
-        const bioData = new Float32Array(size * size * 4);
-        const g1Data = new Float32Array(size * size * 4);
-        const g2Data = new Float32Array(size * size * 4);
+        // Single giant buffer for all initialization data
+        const masterBuffer = new Float32Array(size * size * stride);
 
         for (let i = 0; i < settings.count; i++) {
-            posData[i * 4] = Math.random() * 2000;
-            posData[i * 4 + 1] = Math.random() * 2000;
-
-            bioData[i * 4] = 50.0; // Energy
+            const offset = i * stride;
+            masterBuffer[offset] = Math.random() * 2000;     // x
+            masterBuffer[offset + 1] = Math.random() * 2000; // y
+            masterBuffer[offset + 4] = 50.0;                 // Energy
 
             // Random genome for variety
             const g = new Float32Array(8).map(() => Math.random());
 
-            // Determine archetype (simple version for init)
+            // Determine archetype
             let arch = 0;
             if (g[1] > 0.7) arch = 1;
             else if (g[2] > 0.7) arch = 2;
             else if (g[4] > 0.7) arch = 3;
             else if (g[0] > 0.7) arch = 4;
 
-            bioData[i * 4 + 1] = arch;
+            masterBuffer[offset + 5] = arch;
 
-            g1Data[i * 4] = g[0];
-            g1Data[i * 4 + 1] = g[1];
-            g1Data[i * 4 + 2] = g[2];
-            g1Data[i * 4 + 3] = g[3];
+            // Genes 1-4
+            masterBuffer[offset + 8] = g[0];
+            masterBuffer[offset + 9] = g[1];
+            masterBuffer[offset + 10] = g[2];
+            masterBuffer[offset + 11] = g[3];
 
-            g2Data[i * 4] = g[4];
-            g2Data[i * 4 + 1] = g[5];
-            g2Data[i * 4 + 2] = g[6];
-            g2Data[i * 4 + 3] = g[7];
+            // Genes 5-8
+            masterBuffer[offset + 12] = g[4];
+            masterBuffer[offset + 13] = g[5];
+            masterBuffer[offset + 14] = g[6];
+            masterBuffer[offset + 15] = g[7];
         }
 
-        this.gpuEngine.uploadData(posData, bioData, g1Data, g2Data);
+        this.gpuEngine.uploadData(masterBuffer, stride);
         this.isSimulationRunning = true;
         this.loop();
     }
