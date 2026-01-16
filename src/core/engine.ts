@@ -47,6 +47,7 @@ export class Engine {
     }
 
     update(dt: number) {
+        if (!this.storage || !this.storage.dataBuffer) return;
         this.frameCount++;
 
         // 1. Update Spatial Grid
@@ -148,12 +149,13 @@ export class Engine {
             const tx = this.storage.getX(bestTarget);
             const ty = this.storage.getY(bestTarget);
             const dx = tx - x;
-            const dy = y - ty;
+            const dy = ty - y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             const maxSpeed = speedMultiplier * 100;
             if (dist > 0.1) {
-                this.storage.velocities[idx * 2] = (dx / dist) * maxSpeed;
-                this.storage.velocities[idx * 2 + 1] = (dy / dist) * maxSpeed;
+                const offset = idx * this.storage.stride;
+                this.storage.dataBuffer[offset + 2] = (dx / dist) * maxSpeed;
+                this.storage.dataBuffer[offset + 3] = (dy / dist) * maxSpeed;
             }
 
             if (dist < (size * 10 + this.storage.getGenome(bestTarget)[3] * 10)) {
