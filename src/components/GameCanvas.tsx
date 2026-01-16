@@ -17,6 +17,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     controllerRef
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const isDragging = useRef(false);
+    const lastMousePos = useRef({ x: 0, y: 0 });
+    const isSpaceDown = useRef(false);
 
     useEffect(() => {
         if (canvasRef.current) {
@@ -40,16 +43,48 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 resizeObserver.observe(canvasRef.current.parentElement);
             }
 
+            // Keyboard tracking
+            const handleKeyDown = (e: KeyboardEvent) => { if (e.code === 'Space') isSpaceDown.current = true; };
+            const handleKeyUp = (e: KeyboardEvent) => { if (e.code === 'Space') isSpaceDown.current = false; };
+            window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keyup', handleKeyUp);
+
             return () => {
                 controller.stop();
                 resizeObserver.disconnect();
+                window.removeEventListener('keydown', handleKeyDown);
+                window.removeEventListener('keyup', handleKeyUp);
             };
         }
     }, []);
 
-    const handleClick = (e: React.MouseEvent) => {
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (e.button === 2 || (e.button === 0 && isSpaceDown.current)) {
+            isDragging.current = true;
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
+        } else if (e.button === 0) {
+            if (controllerRef.current) {
+                controllerRef.current.inspect(e.clientX, e.clientY);
+            }
+        }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (isDragging.current && controllerRef.current) {
+            const dx = e.clientX - lastMousePos.current.x;
+            const dy = e.clientY - lastMousePos.current.y;
+            controllerRef.current.pan(dx, dy);
+            lastMousePos.current = { x: e.clientX, y: e.clientY };
+        }
+    };
+
+    const handleMouseUp = () => {
+        isDragging.current = false;
+    };
+
+    const handleWheel = (e: React.WheelEvent) => {
         if (controllerRef.current) {
-            controllerRef.current.inspect(e.clientX, e.clientY);
+            controllerRef.current.handleZoom(e.deltaY, e.clientX, e.clientY);
         }
     };
 
@@ -57,7 +92,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         <canvas
             ref={canvasRef}
             id="simCanvas"
-            onClick={handleClick}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
+            onContextMenu={(e) => e.preventDefault()}
             style={{
                 position: 'fixed',
                 top: 0,

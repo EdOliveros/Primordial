@@ -93,7 +93,36 @@ export class SimulationController {
         }
     }
 
-    public inspect(x: number, y: number) {
+    public pan(dx: number, dy: number) {
+        // dx, dy are in screen pixels
+        // Convert to world spaceDelta (divide by zoom)
+        this.cameraPos[0] -= dx / this.zoom;
+        this.cameraPos[1] -= dy / this.zoom;
+    }
+
+    public handleZoom(delta: number, mouseX: number, mouseY: number) {
+        // 1. Get view-space position of mouse relative to canvas center
+        const rect = this.canvas.getBoundingClientRect();
+        const vx = (mouseX - rect.left - rect.width / 2);
+        const vy = (mouseY - rect.top - rect.height / 2);
+
+        // 2. Get world-space position under mouse before zoom
+        const wx = this.cameraPos[0] + vx / this.zoom;
+        const wy = this.cameraPos[1] + vy / this.zoom;
+
+        // 3. Update target zoom
+        const zoomFactor = delta > 0 ? 0.9 : 1.1;
+        this.targetZoom = Math.max(0.1, Math.min(10.0, this.targetZoom * zoomFactor));
+
+        // We use the current zoom to calculate the new camera position for 
+        // immediate feedback, though targetZoom will catch up.
+        // To make it feel perfect, we actually offset the camera based on the new zoom.
+        const nextZoom = this.targetZoom;
+        this.cameraPos[0] = wx - vx / nextZoom;
+        this.cameraPos[1] = wy - vy / nextZoom;
+    }
+
+    public inspect(_x: number, _y: number) {
         // GPU picking implementation needed
     }
 
@@ -114,7 +143,7 @@ export class SimulationController {
         if (!this.isSimulationRunning) return;
 
         const now = performance.now();
-        const dt = (now - this.lastTime) / 1000;
+        // const dt = (now - this.lastTime) / 1000;
         this.lastTime = now;
 
         this.frameCount++;
