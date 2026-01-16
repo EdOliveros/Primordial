@@ -12,7 +12,6 @@ const App: React.FC = () => {
     const [frameCount, setFrameCount] = useState(0);
     const [inspectedCell, setInspectedCell] = useState<any | null>(null);
     const [isRunning, setIsRunning] = useState(false);
-    const [minimapData, setMinimapData] = useState<Float32Array | null>(null);
 
     const controllerRef = useRef<SimulationController | null>(null);
 
@@ -43,7 +42,6 @@ const App: React.FC = () => {
                 onFPS={setFps}
                 onFrame={setFrameCount}
                 onInspector={setInspectedCell}
-                onMinimapData={setMinimapData}
                 controllerRef={controllerRef}
             />
 
@@ -63,11 +61,10 @@ const App: React.FC = () => {
                     />
                     <InfoPanel telemetry={telemetry} />
                     <Minimap
-                        cameraPos={controllerRef.current?.cameraPos || [0, 0]}
+                        cameraPos={controllerRef.current?.cameraPos || [2500, 2500]}
                         zoom={controllerRef.current?.zoom || 1}
-                        data={minimapData}
                         onNavigate={handleNavigate}
-                        worldSize={2000}
+                        worldSize={5000}
                     />
                 </>
             )}

@@ -6,7 +6,6 @@ interface GameCanvasProps {
     onFPS: (fps: number) => void;
     onFrame: (frameCount: number) => void;
     onInspector: (cell: any) => void;
-    onMinimapData: (data: Float32Array) => void;
     controllerRef: React.MutableRefObject<SimulationController | null>;
 }
 
@@ -15,7 +14,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     onFPS,
     onFrame,
     onInspector,
-    onMinimapData,
     controllerRef
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -30,7 +28,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             controller.onFPS = onFPS;
             controller.onFrame = onFrame;
             controller.onInspector = onInspector;
-            controller.onMinimapData = onMinimapData;
 
             controllerRef.current = controller;
 

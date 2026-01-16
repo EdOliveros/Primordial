@@ -69,8 +69,6 @@ export class SimulationController {
         }
     }
 
-    public onMinimapData: (data: Float32Array) => void = () => { };
-
     public setCameraPos(x: number, y: number) {
         this.cameraPos = [x, y];
         this.targetZoom = this.zoom;
