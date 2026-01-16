@@ -17,52 +17,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
     fps,
     frameCount,
     inspectedCell,
-    isSimulationRunning,
-    onStart,
     onFollow,
     onDismiss
 }) => {
-    const [settings, setSettings] = React.useState({
-        count: 5000,
-        mutation: 1.0,
-        food: 1.0,
-        friction: 0.98
-    });
-
-    if (!isSimulationRunning) {
-        return (
-            <div id="start-screen">
-                <div class="config-card">
-                    <h1>Primordial</h1>
-                    <div className="slider-group">
-                        <div className="slider-header"><span>Initial Population</span><span>{settings.count}</span></div>
-                        <input type="range" min="100" max="50000" step="100" value={settings.count}
-                            onChange={(e) => setSettings({ ...settings, count: parseInt(e.target.value) })} />
-                    </div>
-                    <div className="slider-group">
-                        <div className="slider-header"><span>Mutation Rate</span><span>{settings.mutation}x</span></div>
-                        <input type="range" min="0" max="10" step="0.5" value={settings.mutation}
-                            onChange={(e) => setSettings({ ...settings, mutation: parseFloat(e.target.value) })} />
-                    </div>
-                    <div className="slider-group">
-                        <div className="slider-header"><span>Food Abundance</span><span>{settings.food}x</span></div>
-                        <input type="range" min="0.1" max="5" step="0.1" value={settings.food}
-                            onChange={(e) => setSettings({ ...settings, food: parseFloat(e.target.value) })} />
-                    </div>
-                    <div className="slider-group">
-                        <div className="slider-header"><span>Environmental Friction</span><span>{settings.friction}</span></div>
-                        <input type="range" min="0.8" max="1.0" step="0.01" value={settings.friction}
-                            onChange={(e) => setSettings({ ...settings, friction: parseFloat(e.target.value) })} />
-                    </div>
-                    <button id="btn-start" onClick={() => onStart(settings)}>Initiate Biosphere</button>
-                    <p style={{ marginTop: '20px', fontSize: '0.7rem', opacity: 0.5 }}>
-                        Powered by Gemini & Antigravity AI
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     const GENE_LABELS = ["SPD", "AGG", "PHO", "SIZ", "DEF", "VIS", "MUT", "LIF"];
 
     return (

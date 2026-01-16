@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import GameCanvas from './components/GameCanvas';
 import UIOverlay from './components/UIOverlay';
 import InfoPanel from './components/InfoPanel';
+import StartScreen from './components/StartScreen';
 import { SimulationController, Telemetry } from './core/SimulationController';
 
 const App: React.FC = () => {
@@ -38,17 +39,24 @@ const App: React.FC = () => {
                 onInspector={setInspectedCell}
                 controllerRef={controllerRef}
             />
-            <UIOverlay
-                telemetry={telemetry}
-                fps={fps}
-                frameCount={frameCount}
-                inspectedCell={inspectedCell}
-                isSimulationRunning={isRunning}
-                onStart={handleStart}
-                onFollow={handleFollow}
-                onDismiss={handleDismiss}
-            />
-            <InfoPanel telemetry={telemetry} />
+
+            {!isRunning ? (
+                <StartScreen onStart={handleStart} />
+            ) : (
+                <>
+                    <UIOverlay
+                        telemetry={telemetry}
+                        fps={fps}
+                        frameCount={frameCount}
+                        inspectedCell={inspectedCell}
+                        isSimulationRunning={isRunning}
+                        onStart={handleStart}
+                        onFollow={handleFollow}
+                        onDismiss={handleDismiss}
+                    />
+                    <InfoPanel telemetry={telemetry} />
+                </>
+            )}
         </div>
     );
 };
