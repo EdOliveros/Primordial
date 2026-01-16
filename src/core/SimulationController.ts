@@ -1,5 +1,6 @@
 import { PrimordialRenderer } from "../web/renderer";
 import { GpuEngine } from "./GpuEngine";
+import { Engine } from "./engine";
 
 export interface Telemetry {
     alive: number;
@@ -14,6 +15,7 @@ export class SimulationController {
     private canvas: HTMLCanvasElement;
     private renderer: PrimordialRenderer;
     private gpuEngine: GpuEngine;
+    private engine: Engine; // CPU Engine for high-perf Step 2
     private isSimulationRunning = false;
     private frameCount = 0;
     private lastTime = performance.now();
@@ -39,50 +41,28 @@ export class SimulationController {
         this.canvas = canvas;
         this.renderer = new PrimordialRenderer(canvas);
         const gl = (this.renderer as any).gl as WebGL2RenderingContext;
-        this.gpuEngine = new GpuEngine(gl, 1000000); // Scale to 1M cells
+        this.gpuEngine = new GpuEngine(gl, 1000000);
+        this.engine = new Engine(2000, 100000); // Optimized for 100k as per prompt
     }
 
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
         this.settings = settings;
-        const maxCells = 1000000;
-        const stride = 16;
-        const size = Math.ceil(Math.sqrt(maxCells));
+        this.engine.applySettings({
+            mutationRate: settings.mutation,
+            foodAbundance: settings.food,
+            friction: settings.friction
+        });
 
-        // Single giant buffer for all initialization data
-        const masterBuffer = new Float32Array(size * size * stride);
-
-        for (let i = 0; i < settings.count; i++) {
-            const offset = i * stride;
-            masterBuffer[offset] = Math.random() * 2000;     // x
-            masterBuffer[offset + 1] = Math.random() * 2000; // y
-            masterBuffer[offset + 4] = 50.0;                 // Energy
-
-            // Random genome for variety
-            const g = new Float32Array(8).map(() => Math.random());
-
-            // Determine archetype
-            let arch = 0;
-            if (g[1] > 0.7) arch = 1;
-            else if (g[2] > 0.7) arch = 2;
-            else if (g[4] > 0.7) arch = 3;
-            else if (g[0] > 0.7) arch = 4;
-
-            masterBuffer[offset + 5] = arch;
-
-            // Genes 1-4
-            masterBuffer[offset + 8] = g[0];
-            masterBuffer[offset + 9] = g[1];
-            masterBuffer[offset + 10] = g[2];
-            masterBuffer[offset + 11] = g[3];
-
-            // Genes 5-8
-            masterBuffer[offset + 12] = g[4];
-            masterBuffer[offset + 13] = g[5];
-            masterBuffer[offset + 14] = g[6];
-            masterBuffer[offset + 15] = g[7];
+        // Initialize cells on CPU Storage (Paso 1 Optimization)
+        for (let i = 0; i < Math.min(settings.count, 100000); i++) {
+            const genome = new Float32Array(8).map(() => Math.random());
+            this.engine.storage.spawn(
+                Math.random() * 2000,
+                Math.random() * 2000,
+                genome
+            );
         }
 
-        this.gpuEngine.uploadData(masterBuffer, stride);
         this.isSimulationRunning = true;
         this.loop();
     }
@@ -98,40 +78,33 @@ export class SimulationController {
 
     public setCameraPos(x: number, y: number) {
         this.cameraPos = [x, y];
-        this.targetZoom = this.zoom; // Stop any auto-zoom
+        this.targetZoom = this.zoom;
     }
 
     public pan(dx: number, dy: number) {
-        // dx, dy are in screen pixels
-        // Convert to world spaceDelta (divide by zoom)
         this.cameraPos[0] -= dx / this.zoom;
         this.cameraPos[1] -= dy / this.zoom;
     }
 
     public handleZoom(delta: number, mouseX: number, mouseY: number) {
-        // 1. Get view-space position of mouse relative to canvas center
         const rect = this.canvas.getBoundingClientRect();
         const vx = (mouseX - rect.left - rect.width / 2);
         const vy = (mouseY - rect.top - rect.height / 2);
 
-        // 2. Get world-space position under mouse before zoom
         const wx = this.cameraPos[0] + vx / this.zoom;
         const wy = this.cameraPos[1] + vy / this.zoom;
 
-        // 3. Update target zoom
         const zoomFactor = delta > 0 ? 0.9 : 1.1;
         this.targetZoom = Math.max(0.1, Math.min(10.0, this.targetZoom * zoomFactor));
 
-        // We use the current zoom to calculate the new camera position for 
-        // immediate feedback, though targetZoom will catch up.
-        // To make it feel perfect, we actually offset the camera based on the new zoom.
         const nextZoom = this.targetZoom;
         this.cameraPos[0] = wx - vx / nextZoom;
         this.cameraPos[1] = wy - vy / nextZoom;
     }
 
     public async inspect(worldX: number, worldY: number) {
-        const cell = await this.gpuEngine.pick(worldX, worldY);
+        // CPU Picking for Step 2 (Direct access to engine data)
+        const cell = this.engine.getNearestCell(worldX, worldY);
         this.inspectedCell = cell;
         this.onInspector(cell);
     }
@@ -149,11 +122,11 @@ export class SimulationController {
         this.inspectedCell = null;
     }
 
-    private loop = async () => {
+    private loop = () => {
         if (!this.isSimulationRunning) return;
 
         const now = performance.now();
-        // const dt = (now - this.lastTime) / 1000;
+        const dt = Math.min(0.016, (now - this.lastTime) / 1000);
         this.lastTime = now;
 
         this.frameCount++;
@@ -168,33 +141,23 @@ export class SimulationController {
 
         this.zoom += (this.targetZoom - this.zoom) * 0.05;
 
-        // 1. Step Simulation on GPU
-        this.gpuEngine.step([2000, 2000], this.settings.mutation, this.settings.food);
+        // 1. Step Simulation on CPU (Optimized AOS Buffer)
+        this.engine.update(dt);
 
-        // 2. Render from Textures
+        // 2. Render via WebGL Instanced Attributes (Step 2)
+        // Passes the CPU-side dataBuffer directly for a single draw call.
         this.renderer.render(
-            [2000, 2000],
-            this.gpuEngine.getStateTextures(),
-            1000000, // Render 1M instances
+            [this.canvas.width, this.canvas.height],
+            this.engine.storage.dataBuffer,
+            this.engine.storage.maxCells,
             this.cameraPos,
             this.zoom
         );
 
-        // 3. Optional: Read Telemetry (Throttled for performance)
+        // 3. UI Updates
         if (this.frameCount % 60 === 0) {
-            const tel = await this.gpuEngine.getTelemetry();
-            this.onTelemetry({
-                alive: tel.total,
-                births: 0,
-                deaths: 0,
-                generation: 0,
-                histogram: [],
-                archetypes: tel.counts
-            });
-
-            // Also send minimap data
-            const miniData = await this.gpuEngine.getMinimapData();
-            this.onMinimapData(miniData);
+            const tel = this.engine.getTelemetry();
+            this.onTelemetry(tel);
         }
 
         this.animationFrameId = requestAnimationFrame(this.loop);

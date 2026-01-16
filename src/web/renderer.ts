@@ -1,35 +1,39 @@
 export const VERTEX_SHADER = `#version 300 es
-layout(location = 0) in vec2 aPos;
+layout(location = 0) in vec2 aQuadPos;
+// Instance Attributes
+layout(location = 1) in vec2 aWorldPos;
+layout(location = 2) in vec2 aVel;
+layout(location = 3) in float aEnergy;
+layout(location = 4) in float aArch;
 
-uniform sampler2D uPosTex;
-uniform sampler2D uBioTex;
-uniform int uTexSize;
-
-uniform vec2 uWorldSize;
-uniform float uCellSize;
+uniform vec2 uViewportSize;
 uniform vec2 uCameraPos;
 uniform float uZoom;
+uniform float uCellSize;
 
 out vec4 vColor;
 out float vGlow;
 
 void main() {
-    int x = gl_InstanceID % uTexSize;
-    int y = gl_InstanceID / uTexSize;
-    vec2 uv = (vec2(float(x), float(y)) + 0.5) / float(uTexSize);
-
-    vec4 posVel = texture(uPosTex, uv);
-    vec4 bio = texture(uBioTex, uv);
-
-    // Filter out inactive cells (energy <= 0)
-    if (bio.x <= 0.0) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0); // Off-screen
+    // 1. Frustum Culling & Activity Check
+    if (aEnergy <= 0.0) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
         return;
     }
 
-    // Determine color based on archetype index (stored in bio.y)
-    int arch = int(bio.y);
-    vec3 color = vec3(0.4); // Default gray
+    vec2 viewPos = (aWorldPos - uCameraPos) * uZoom;
+
+    // Simple culling: if outside NDC range (+ margin for cell size)
+    float margin = uCellSize * uZoom + 10.0;
+    if (abs(viewPos.x) > uViewportSize.x * 0.5 + margin || 
+        abs(viewPos.y) > uViewportSize.y * 0.5 + margin) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+
+    // 2. Color Classification
+    int arch = int(aArch);
+    vec3 color = vec3(0.4);
     float glow = 0.0;
     
     if (arch == 1) { color = vec3(1.0, 0.0, 0.2); glow = 1.0; } // Pred
@@ -40,15 +44,14 @@ void main() {
     vColor = vec4(color, 1.0);
     vGlow = glow;
     
-    vec2 worldPos = aPos * uCellSize + posVel.xy;
-    vec2 viewPos = (worldPos - uCameraPos) * uZoom;
-    vec2 normalized = viewPos / (uWorldSize * 0.5); 
-    gl_Position = vec4(normalized.x, -normalized.y, 0.0, 1.0);
+    // 3. Transform
+    vec2 pos = aQuadPos * uCellSize * uZoom + viewPos;
+    vec2 ndc = pos / (uViewportSize * 0.5); 
+    gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 }
 `;
 
 export const FRAGMENT_SHADER = `#version 300 es
-// ... (stays the same as before, but I'll redefine it for completeness in the chunk)
 precision highp float;
 in vec4 vColor;
 in float vGlow;
@@ -78,7 +81,7 @@ out vec4 outColor;
 void main() {
     vec4 scene = texture(uScene, vTexCoord);
     vec4 bloom = texture(uBloom, vTexCoord);
-    outColor = scene + bloom * 1.5; // Add bloom
+    outColor = scene + bloom * 1.5;
 }
 `;
 
@@ -88,8 +91,7 @@ export class PrimordialRenderer {
     private bloomProgram: WebGLProgram;
 
     private quadVAO!: WebGLVertexArrayObject;
-    private instancePosBuffer!: WebGLBuffer;
-    private instanceColorBuffer!: WebGLBuffer;
+    private instanceBuffer!: WebGLBuffer;
 
     private sceneFBO!: WebGLFramebuffer;
     private sceneTex!: WebGLTexture;
@@ -102,6 +104,7 @@ export class PrimordialRenderer {
 
         this.program = this.createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
         this.bloomProgram = this.createProgram(BLOOM_VERTEX, BLOOM_FRAGMENT);
+
         this.initBuffers();
         this.initFBO();
     }
@@ -129,10 +132,12 @@ export class PrimordialRenderer {
         const vs = gl.createShader(gl.VERTEX_SHADER)!;
         gl.shaderSource(vs, vsSource);
         gl.compileShader(vs);
+        if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) console.error("VS:", gl.getShaderInfoLog(vs));
 
         const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
         gl.shaderSource(fs, fsSource);
         gl.compileShader(fs);
+        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) console.error("FS:", gl.getShaderInfoLog(fs));
 
         const prog = gl.createProgram()!;
         gl.attachShader(prog, vs);
@@ -146,7 +151,7 @@ export class PrimordialRenderer {
         this.quadVAO = gl.createVertexArray()!;
         gl.bindVertexArray(this.quadVAO);
 
-        // Cell Geometry (Square)
+        // Unit Quad
         const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
         const posBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
@@ -154,19 +159,31 @@ export class PrimordialRenderer {
         gl.enableVertexAttribArray(0);
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
 
-        // Instance Positions
-        this.instancePosBuffer = gl.createBuffer()!;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instancePosBuffer);
+        // Instance Data (Interleaved)
+        this.instanceBuffer = gl.createBuffer()!;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+
+        const stride = 16 * 4; // 16 floats * 4 bytes
+
+        // Location 1: aWorldPos (x, y)
         gl.enableVertexAttribArray(1);
-        gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 0);
         gl.vertexAttribDivisor(1, 1);
 
-        // Instance Colors
-        this.instanceColorBuffer = gl.createBuffer()!;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceColorBuffer);
+        // Location 2: aVel (vx, vy) - Optional for shader but good for layout
         gl.enableVertexAttribArray(2);
-        gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(2, 2, gl.FLOAT, false, stride, 2 * 4);
         gl.vertexAttribDivisor(2, 1);
+
+        // Location 3: aEnergy
+        gl.enableVertexAttribArray(3);
+        gl.vertexAttribPointer(3, 1, gl.FLOAT, false, stride, 4 * 4);
+        gl.vertexAttribDivisor(3, 1);
+
+        // Location 4: aArch
+        gl.enableVertexAttribArray(4);
+        gl.vertexAttribPointer(4, 1, gl.FLOAT, false, stride, 5 * 4);
+        gl.vertexAttribDivisor(4, 1);
     }
 
     private createTexture(w: number, h: number): WebGLTexture {
@@ -176,49 +193,43 @@ export class PrimordialRenderer {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         return tex;
     }
 
     render(
-        worldSize: [number, number],
-        stateTextures: { posVel: WebGLTexture, bioData: WebGLTexture, size: number },
+        viewportSize: [number, number],
+        dataBuffer: Float32Array,
         count: number,
         cameraPos: [number, number],
         zoom: number
     ) {
         const gl = this.gl;
 
-        // 1. Render Scene to FBO
+        // Upload instance data
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+        // We only upload the first 'count' cells to save bandwidth
+        // Stride is 16
+        gl.bufferData(gl.ARRAY_BUFFER, dataBuffer.subarray(0, count * 16), gl.DYNAMIC_DRAW);
+
+        // 1. Scene Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-        gl.clearColor(0.01, 0.01, 0.01, 1.0);
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
         gl.useProgram(this.program);
         gl.bindVertexArray(this.quadVAO);
 
-        // Bind Textures
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, stateTextures.posVel);
-        gl.uniform1i(gl.getUniformLocation(this.program, "uPosTex"), 0);
-
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, stateTextures.bioData);
-        gl.uniform1i(gl.getUniformLocation(this.program, "uBioTex"), 1);
-
-        gl.uniform1i(gl.getUniformLocation(this.program, "uTexSize"), stateTextures.size);
-        gl.uniform2f(gl.getUniformLocation(this.program, "uWorldSize"), worldSize[0], worldSize[1]);
-        gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 3.0);
+        gl.uniform2f(gl.getUniformLocation(this.program, "uViewportSize"), viewportSize[0], viewportSize[1]);
         gl.uniform2f(gl.getUniformLocation(this.program, "uCameraPos"), cameraPos[0], cameraPos[1]);
         gl.uniform1f(gl.getUniformLocation(this.program, "uZoom"), zoom);
+        gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 4.0);
 
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
 
-        // 2. Final Pass (Combine)
+        // 2. Final / Bloom Addition Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
         gl.useProgram(this.bloomProgram);
 
         gl.activeTexture(gl.TEXTURE0);
