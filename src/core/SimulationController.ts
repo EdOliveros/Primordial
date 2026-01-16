@@ -33,6 +33,12 @@ export class SimulationController {
 
     private animationFrameId: number | null = null;
 
+    // Keyboard navigation state
+    private keyState = {
+        w: false, a: false, s: false, d: false,
+        ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false
+    };
+
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
         this.renderer = new PrimordialRenderer(canvas);
@@ -77,6 +83,31 @@ export class SimulationController {
     public pan(dx: number, dy: number) {
         this.cameraPos[0] -= dx / this.zoom;
         this.cameraPos[1] -= dy / this.zoom;
+    }
+
+    public setKeyState(key: string, pressed: boolean) {
+        if (key in this.keyState) {
+            (this.keyState as any)[key] = pressed;
+        }
+    }
+
+    private updateKeyboardMovement() {
+        // Zoom-adaptive speed: slower when zoomed in, faster when zoomed out
+        const baseSpeed = 10;
+        const speed = baseSpeed / this.zoom;
+
+        let dx = 0;
+        let dy = 0;
+
+        if (this.keyState.w || this.keyState.ArrowUp) dy -= speed;
+        if (this.keyState.s || this.keyState.ArrowDown) dy += speed;
+        if (this.keyState.a || this.keyState.ArrowLeft) dx -= speed;
+        if (this.keyState.d || this.keyState.ArrowRight) dx += speed;
+
+        if (dx !== 0 || dy !== 0) {
+            this.cameraPos[0] += dx;
+            this.cameraPos[1] += dy;
+        }
     }
 
     public handleZoom(delta: number, mouseX: number, mouseY: number) {
@@ -131,6 +162,9 @@ export class SimulationController {
             this.fpsFrames = 0;
             this.fpsTime = now;
         }
+
+        // Update keyboard-based camera movement
+        this.updateKeyboardMovement();
 
         this.zoom += (this.targetZoom - this.zoom) * 0.05;
 

@@ -43,9 +43,30 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 resizeObserver.observe(canvasRef.current.parentElement);
             }
 
-            // Keyboard tracking
-            const handleKeyDown = (e: KeyboardEvent) => { if (e.code === 'Space') isSpaceDown.current = true; };
-            const handleKeyUp = (e: KeyboardEvent) => { if (e.code === 'Space') isSpaceDown.current = false; };
+            // Keyboard tracking for Space and WASD/Arrow navigation
+            const handleKeyDown = (e: KeyboardEvent) => {
+                if (e.code === 'Space') {
+                    isSpaceDown.current = true;
+                }
+                // WASD and Arrow keys for camera navigation
+                if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(e.code)) {
+                    const key = e.code.replace('Key', '').toLowerCase();
+                    controller.setKeyState(key === 'w' || key === 'a' || key === 's' || key === 'd' ? key : e.code, true);
+                    e.preventDefault(); // Prevent page scrolling
+                }
+            };
+
+            const handleKeyUp = (e: KeyboardEvent) => {
+                if (e.code === 'Space') {
+                    isSpaceDown.current = false;
+                }
+                // WASD and Arrow keys
+                if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(e.code)) {
+                    const key = e.code.replace('Key', '').toLowerCase();
+                    controller.setKeyState(key === 'w' || key === 'a' || key === 's' || key === 'd' ? key : e.code, false);
+                }
+            };
+
             window.addEventListener('keydown', handleKeyDown);
             window.addEventListener('keyup', handleKeyUp);
 
