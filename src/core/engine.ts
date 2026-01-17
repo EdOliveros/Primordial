@@ -186,6 +186,24 @@ export class Engine {
         }
     }
 
+    private fragmentColony(idx: number, mass: number, genome: Float32Array) {
+        const x = this.storage.getX(idx);
+        const y = this.storage.getY(idx);
+        const survivors = Math.min(5, Math.floor(mass / 2.0)); // 3-5 survivors
+
+        this.storage.remove(idx); // Destroy colony
+
+        for (let i = 0; i < survivors; i++) {
+            // Scatter survivors
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 10 + Math.random() * 20;
+            const sx = x + Math.cos(angle) * dist;
+            const sy = y + Math.sin(angle) * dist;
+
+            this.storage.spawn(sx, sy, genome);
+        }
+    }
+
     private processCell(idx: number, dt: number) {
         const genome = this.storage.getGenome(idx);
 
@@ -208,12 +226,25 @@ export class Engine {
         const energyCost = (currentSpeedSq * 0.5 + Math.pow(size, 3) * 1 + visionRange * 0.005) * dt;
         energy -= energyCost;
 
+        const mass = this.storage.cells[offset + 6];
+
         const solarIntensity = this.environment.getSolarIntensity(x, y);
-        const energyGain = (solarIntensity * photoEfficiency * 45.0 * this.foodAbundance) * dt;
+        let energyGain = (solarIntensity * photoEfficiency * 45.0 * this.foodAbundance) * dt;
+
+        // Scaled Feeding: Colonies eat more efficiently
+        if (mass > 2.0) {
+            energyGain *= (1.0 + Math.log2(mass)); // Diminishing returns scaling
+        }
         energy += energyGain;
 
         const poison = this.environment.getPoison(x, y);
         if (poison > 0) energy -= poison * 50 * dt;
+
+        // Fragmentation: Weak colonies break apart
+        if (mass > 1.5 && mass < 10.0) {
+            this.fragmentColony(idx, mass, genome);
+            return; // Cell removed
+        }
 
         // --- 2. AI & Behavior ---
         let bestTarget = -1;
@@ -242,6 +273,23 @@ export class Engine {
                     this.storage.cells[nOffset + 6] += myMass; // Add mass
                     this.storage.cells[nOffset + 4] += energy; // Add energy
                     energy = -100; // Kill me
+                }
+            }
+
+            // Colony Combat: Clash of Titans
+            if (myMass > 5.0 && nMass > 5.0 && nArch !== myArch) {
+                if (distSq < (myMass + nMass) * 2) { // Collision radius
+                    if (myMass > nMass) {
+                        // I am bigger: I drain them
+                        const drain = (myMass - nMass) * 0.5 * dt;
+                        energy += drain * 10;
+
+                        const myOffset = idx * this.storage.stride;
+                        const nOffset = neighborIdx * this.storage.stride;
+
+                        this.storage.cells[myOffset + 6] += drain;
+                        this.storage.cells[nOffset + 6] -= drain;
+                    }
                 }
             }
 
