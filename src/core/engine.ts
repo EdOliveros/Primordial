@@ -60,6 +60,13 @@ export class Engine {
         // 1. Update Spatial Grid
         this.spatialGrid.update(this.storage.cells, this.storage.isActive, this.storage.stride);
 
+        // 1b. Update Cooldowns
+        for (let i = 0; i < this.storage.maxCells; i++) {
+            if (this.storage.isActive[i] && this.storage.cooldowns[i] > 0) {
+                this.storage.cooldowns[i] -= dt;
+            }
+        }
+
         // 2. Identify Species
         if (this.frameCount === 1 || this.frameCount % 60 === 0) {
             this.updateSpecies();
@@ -250,6 +257,13 @@ export class Engine {
     public onEvent: (type: string, data: any) => void = () => { };
 
     private formColony(clusterIndices: number[]) {
+        // FILTER: Remove cells on Fusion Cooldown
+        const validIndices = clusterIndices.filter(idx => this.storage.cooldowns[idx] <= 0);
+
+        // ABORT if not enough valid candidates for mass fusion
+        // Require at least a few valid cells to form something meaningful
+        if (validIndices.length < 2) return;
+
         let totalMass = 0;
         let avgX = 0;
         let avgY = 0;
@@ -297,6 +311,9 @@ export class Engine {
             // Trigger Event
             const geneColor = this.getDominantArchetype(bestGenome);
             this.onEvent('colony', { color: geneColor, mass: totalMass });
+
+            // Set Cooldown on new Colony (Immunity for 3 seconds)
+            this.storage.cooldowns[newIdx] = 3.0;
         }
     }
 
@@ -336,10 +353,10 @@ export class Engine {
         const genome = this.storage.getGenome(idx);
 
         const speedMultiplier = genome[0];
-        const aggressiveness = genome[1];
-        const photoEfficiency = genome[2];
+        const aggressiveness = genome[1]; // Red
+        const photoEfficiency = genome[2]; // Green
         const size = genome[3];
-        const defense = genome[4];
+        const defense = genome[4]; // Blue (Tank)
         const visionRange = genome[5] * 100;
         let energy = this.storage.getEnergy(idx);
         const x = this.storage.getX(idx);
@@ -348,18 +365,26 @@ export class Engine {
         const offset = idx * this.storage.stride;
         const mass = this.storage.cells[offset + 6];
 
-        // --- Speed Penalty for Size ---
+        // --- Speed Penalty for Size & Balance ---
         // Logarithmic slow down: Mass 10 -> 0.9x, Mass 100 -> 0.7x, Mass 1000 -> 0.4x
         let sizeSpeedPenalty = 1.0;
         if (mass > 2.0) {
             sizeSpeedPenalty = Math.max(0.3, 1.0 - Math.log10(mass) * 0.25);
         }
 
+        // SPECIES BALANCE (Nerf Speedsters, Buff Tanks)
+        // If High Speed (Gene 0 > 0.7), extra energy cost
+        let energyBurnRate = 1.0;
+        if (speedMultiplier > 0.7) energyBurnRate = 1.5; // +50% cost for speedsters
+
+        // If Tank (Gene 4 > 0.7), reduce damage/cost
+        if (defense > 0.7) energyBurnRate = 0.8; // -20% cost for tanks
+
         // --- 1. Thermodynamics ---
         const vx = this.storage.cells[offset + 2];
         const vy = this.storage.cells[offset + 3];
         const currentSpeedSq = vx * vx + vy * vy;
-        const energyCost = (currentSpeedSq * 0.5 + Math.pow(size, 3) * 1 + visionRange * 0.005) * dt;
+        const energyCost = (currentSpeedSq * 0.5 + Math.pow(size, 3) * 1 + visionRange * 0.005) * dt * energyBurnRate;
         energy -= energyCost;
 
         const solarIntensity = this.environment.getSolarIntensity(x, y);

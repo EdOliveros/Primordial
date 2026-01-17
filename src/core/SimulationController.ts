@@ -247,6 +247,22 @@ export class SimulationController {
             console.log(`--- Loop Corriendo (Frame ${this.frameCount}) ---`);
             console.log(`Camera: ${this.cameraPos[0].toFixed(1)}, ${this.cameraPos[1].toFixed(1)} Zoom: ${this.zoom}`);
             console.log(`Entities: ${this.engine.storage.activeCount}`);
+
+            // AUTO-ZOOM CHECK (Level 10 Detection)
+            let maxMass = 0;
+            for (let i = 0; i < this.engine.storage.maxCells; i++) {
+                if (this.engine.storage.isActive[i]) {
+                    const m = this.engine.storage.cells[i * this.engine.storage.stride + 6];
+                    if (m > maxMass) maxMass = m;
+                }
+            }
+            // If Level 10 (Mass > 500) exists, target Zoom to 0.5
+            if (maxMass > 450) {
+                // Smoothly drift to 0.6 if currently zoomed in
+                if (this.zoom > 0.6) {
+                    this.zoom = this.zoom * 0.99 + 0.6 * 0.01;
+                }
+            }
         }
 
         // FORCE CAMERA RESET (Debug)
