@@ -345,6 +345,7 @@ export class Engine {
         const x = this.storage.getX(idx);
         const y = this.storage.getY(idx);
 
+        const offset = idx * this.storage.stride;
         const mass = this.storage.cells[offset + 6];
 
         // --- Speed Penalty for Size ---

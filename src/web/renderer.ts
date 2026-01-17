@@ -53,15 +53,6 @@ void main() {
     vColor = color;
     vGlow = glow;
     vMass = aMass;
-    
-    // 3. Transform
-    float sizeMult = max(1.0, log2(aMass)); // Scale size logarithmically with mass
-    vec2 pos = aQuadPos * uCellSize * uZoom * sizeMult + viewPos;
-    vec2 ndc = pos / (uViewportSize * 0.5); 
-    // float sizeMult = max(1.0, log2(aMass)); // Scale size logarithmically with mass
-    // vec2 pos = aQuadPos * uCellSize * uZoom * sizeMult + viewPos;
-    // vec2 ndc = pos / (uViewportSize * 0.5); 
-    // gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 }
 `;
 
