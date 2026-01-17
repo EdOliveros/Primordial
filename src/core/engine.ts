@@ -341,20 +341,25 @@ export class Engine {
         const size = genome[3];
         const defense = genome[4];
         const visionRange = genome[5] * 100;
-
         let energy = this.storage.getEnergy(idx);
         const x = this.storage.getX(idx);
         const y = this.storage.getY(idx);
 
+        const mass = this.storage.cells[offset + 6];
+
+        // --- Speed Penalty for Size ---
+        // Logarithmic slow down: Mass 10 -> 0.9x, Mass 100 -> 0.7x, Mass 1000 -> 0.4x
+        let sizeSpeedPenalty = 1.0;
+        if (mass > 2.0) {
+            sizeSpeedPenalty = Math.max(0.3, 1.0 - Math.log10(mass) * 0.25);
+        }
+
         // --- 1. Thermodynamics ---
-        const offset = idx * this.storage.stride;
         const vx = this.storage.cells[offset + 2];
         const vy = this.storage.cells[offset + 3];
         const currentSpeedSq = vx * vx + vy * vy;
         const energyCost = (currentSpeedSq * 0.5 + Math.pow(size, 3) * 1 + visionRange * 0.005) * dt;
         energy -= energyCost;
-
-        const mass = this.storage.cells[offset + 6];
 
         const solarIntensity = this.environment.getSolarIntensity(x, y);
         let energyGain = (solarIntensity * photoEfficiency * 45.0 * this.foodAbundance) * dt;
@@ -382,8 +387,14 @@ export class Engine {
         let minDist = Infinity;
         let minFleeDist = Infinity;
 
-        this.spatialGrid.query(x, y, visionRange, (neighborIdx) => {
-            if (neighborIdx === idx) return;
+        // Pre-collect neighbors for advanced logic (Alliance Defense)
+        // Optimization: Cap neighbors to avoid infinite loops in hyper-dense zones
+        const neighbors: number[] = [];
+        this.spatialGrid.query(x, y, visionRange, (nIdx) => {
+            if (nIdx !== idx) neighbors.push(nIdx);
+        });
+
+        for (const neighborIdx of neighbors) {
             const tx = this.storage.getX(neighborIdx);
             const ty = this.storage.getY(neighborIdx);
             const distSq = (tx - x) ** 2 + (ty - y) ** 2;
@@ -397,8 +408,8 @@ export class Engine {
             const myArch = this.storage.cells[idx * this.storage.stride + 5];
 
             // 1. Absorption (The Blob Logic)
-            // Rule: Bigger eats Smaller (if diff > 20% and compatible-ish or aggressive)
-            if (myMass > nMass * 1.2) {
+            // Rule: Bigger eats Smaller (REQUIRE 30% ADVANTAGE)
+            if (myMass > nMass * 1.3) {
                 // Calculate "Eat Radius" based on mass (Logarithmic)
                 const eatRadiusSq = (8.0 * (1.0 + Math.log(myMass) * 1.5)) ** 2; // Match visual radius somewhat
 
@@ -409,31 +420,47 @@ export class Engine {
                     const areAllies = myAlliance !== -1 && myAlliance === nAlliance;
 
                     if (!areAllies) {
-                        // CONSUME
-                        this.storage.cells[idx * this.storage.stride + 6] += nMass; // Absorb Mass
-                        this.storage.cells[idx * this.storage.stride + 4] += energy * 0.5; // Absorb portion of energy
-                        this.storage.remove(neighborIdx);
-
-                        // Notify if significant
-                        if (nMass > 5.0) {
-                            this.onEvent('absorption', { mass: nMass });
+                        // ALLIANCE DEFENSE CALCULATION
+                        let defensiveMass = nMass;
+                        if (nAlliance !== -1) {
+                            // Sum mass of all VISIBLE allies of the victim
+                            for (const allyIdx of neighbors) {
+                                if (allyIdx !== neighborIdx && this.storage.allianceId[allyIdx] === nAlliance) {
+                                    defensiveMass += this.storage.cells[allyIdx * this.storage.stride + 6];
+                                }
+                            }
                         }
-                        return; // Done processing this neighbor
+
+                        // Check versus Defensive Mass
+                        if (myMass > defensiveMass * 1.3) {
+                            // CONSUME
+                            this.storage.cells[idx * this.storage.stride + 6] += nMass; // Absorb Mass
+                            this.storage.cells[idx * this.storage.stride + 4] += energy * 0.5; // Absorb portion of energy
+                            this.storage.remove(neighborIdx);
+
+                            // Notify if significant
+                            if (nMass > 5.0) {
+                                this.onEvent('absorption', { mass: nMass });
+                            }
+                            continue; // Neighbor dead
+                        }
                     }
                 }
             }
 
+            // Standard AI Logic checks (Predation/Fleeing targets) based on simple distance
+            // ... (Only consider if not consumed)
+
             const myAlliance = this.storage.allianceId[idx];
             const nAlliance = this.storage.allianceId[neighborIdx];
 
-            // Predation / Fighting
-            // If aggressive (> 0.5) and larger mass, steal mass
-            // Added Logic: Alliance Protection (Don't eat allies)
+            // Predation / Fighting (Standard)
             const otherAlliance = this.storage.allianceId[neighborIdx];
             const areAllies = myAlliance !== -1 && myAlliance === otherAlliance;
 
             if (!areAllies && aggressiveness > 0.5 && myMass > nMass * 1.2) {
-                const steal = 1.5 * dt; // Mass transfer rate
+                // ... (Stealing logic remains similar or can be deprecated in favor of full absorption for colonies)
+                const steal = 1.5 * dt;
 
                 // Check for assimilation event (Colony vs Colony)
                 if (myMass > 2.0 && nMass > 2.0 && (nMass - steal) <= 0.1) {
@@ -469,7 +496,7 @@ export class Engine {
                 // To explicitly "surround enemies", we can increase Aggressiveness if an Ally is nearby.
             }
 
-            // Predation
+            // Predation Targeting
             if (energy < this.HUNGER_THRESHOLD && nGenome[4] < aggressiveness && myMass >= nMass) {
                 if (distSq < minDist) {
                     minDist = distSq;
@@ -482,7 +509,7 @@ export class Engine {
                 minFleeDist = distSq;
                 fleeTarget = neighborIdx;
             }
-        });
+        }
 
         if (fleeTarget !== -1) {
             const tx = this.storage.getX(fleeTarget);
@@ -490,7 +517,7 @@ export class Engine {
             const dx = x - tx;
             const dy = y - ty;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            const maxSpeed = speedMultiplier * 100;
+            const maxSpeed = speedMultiplier * 100 * sizeSpeedPenalty; // Apply Penalty
             if (dist > 0.1) {
                 const offset = idx * this.storage.stride;
                 this.storage.cells[offset + 2] = (dx / dist) * maxSpeed;
@@ -502,7 +529,7 @@ export class Engine {
             const dx = tx - x;
             const dy = ty - y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            const maxSpeed = speedMultiplier * 100;
+            const maxSpeed = speedMultiplier * 100 * sizeSpeedPenalty; // Apply Penalty
             if (dist > 0.1) {
                 const offset = idx * this.storage.stride;
                 this.storage.cells[offset + 2] = (dx / dist) * maxSpeed;
@@ -514,7 +541,7 @@ export class Engine {
                 this.storage.remove(bestTarget);
             }
         } else {
-            this.wander(idx, speedMultiplier);
+            this.wander(idx, speedMultiplier * sizeSpeedPenalty); // Apply Penalty
         }
 
         // --- 3. Evolution ---
