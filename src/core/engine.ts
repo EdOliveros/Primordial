@@ -342,6 +342,8 @@ export class Engine {
 
     public onEvent: (type: string, data: any) => void = () => { };
 
+    private firstColonyCreated: boolean = false;
+
     private formColony(clusterIndices: number[]) {
         // PHASE RULE: Fusion only allowed from Phase 11+
         if (this.currentPhase < 11) return;
@@ -399,6 +401,12 @@ export class Engine {
         // Spawn Super-Entity (Colony)
         const newIdx = this.storage.spawn(avgX, avgY, bestGenome);
         if (newIdx !== -1) {
+            // DEBUG: Log First Colony
+            if (!this.firstColonyCreated) {
+                console.log('>>> FIRST COLONY CREATED AT:', avgX, avgY, 'Mass:', totalMass);
+                this.firstColonyCreated = true;
+            }
+
             // Set properties
             const offset = newIdx * this.storage.stride;
             this.storage.cells[offset + 6] = totalMass; // Set total mass

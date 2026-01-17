@@ -127,15 +127,20 @@ export class PrimordialRenderer {
             // For now, assuming always on or check outside.
             // Wait, we need to pass `currentPhase` to render function!
 
-            // Draw One Circle (Strict Isolation)
+            // Draw Entity
             ctx.beginPath();
             ctx.arc(x, y, visualRadius, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
 
-            // RESCUE: FORCE VISIBILITY (White Stroke)
+            // VISIBILITY & COLONY DISTINCTION
             ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 1;
+            // If Colony (Mass > 10 or Level > 1), use thick line
+            if (mass > 10.0 || level > 1) {
+                ctx.lineWidth = 3; // Distinctive Colony Thickness
+            } else {
+                ctx.lineWidth = 1; // Standard Cell
+            }
             ctx.stroke();
 
             // --- LEVEL 5+ AURA ---
