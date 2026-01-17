@@ -26,8 +26,7 @@ export class SimulationController {
     public onInspector: (cell: any) => void = () => { };
 
     public cameraPos: [number, number] = [500, 500]; // Center of 1000x1000 world
-    public zoom = 1.0;
-    public targetZoom = 1.0;
+    public zoom = 1.0; // Locked zoom
     public followingIdx: number | null = null;
     public inspectedCell: any = null;
 
@@ -96,9 +95,8 @@ export class SimulationController {
     }
 
     private updateKeyboardMovement() {
-        // Zoom-adaptive speed: slower when zoomed in, faster when zoomed out
-        const baseSpeed = 10;
-        const speed = baseSpeed / this.zoom;
+        // Fixed speed since zoom is locked
+        const speed = 10;
 
         let dx = 0;
         let dy = 0;
@@ -118,21 +116,7 @@ export class SimulationController {
         }
     }
 
-    public handleZoom(delta: number, mouseX: number, mouseY: number) {
-        const rect = this.canvas.getBoundingClientRect();
-        const vx = (mouseX - rect.left - rect.width / 2);
-        const vy = (mouseY - rect.top - rect.height / 2);
-
-        const wx = this.cameraPos[0] + vx / this.zoom;
-        const wy = this.cameraPos[1] + vy / this.zoom;
-
-        const zoomFactor = delta > 0 ? 0.9 : 1.1;
-        this.targetZoom = Math.max(0.1, Math.min(10.0, this.targetZoom * zoomFactor));
-
-        const nextZoom = this.targetZoom;
-        this.cameraPos[0] = wx - vx / nextZoom;
-        this.cameraPos[1] = wy - vy / nextZoom;
-    }
+    // Zoom handling removed - zoom is locked to 1.0
 
     public async inspect(worldX: number, worldY: number) {
         // CPU Picking for Step 2 (Direct access to engine data)
@@ -174,7 +158,7 @@ export class SimulationController {
         // Update keyboard-based camera movement
         this.updateKeyboardMovement();
 
-        this.zoom += (this.targetZoom - this.zoom) * 0.05;
+        // Zoom logic removed
 
         // 1. Step Simulation on CPU (Optimized AOS Buffer)
         this.engine.update(dt);
