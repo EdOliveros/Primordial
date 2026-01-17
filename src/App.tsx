@@ -53,6 +53,9 @@ const App: React.FC = () => {
             controllerRef.current.onEvent = handleEvent; // Hook event listener
             controllerRef.current.start(settings);
             setIsRunning(true);
+
+            // Force Test Message
+            handleEvent("¡Sistema de Crónicas Iniciado!");
         }
     };
 

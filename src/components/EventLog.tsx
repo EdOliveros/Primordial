@@ -14,17 +14,12 @@ interface EventLogProps {
 const EventLog: React.FC<EventLogProps> = ({ events }) => {
     return (
         <div className="event-log-container">
-            {events.map((ev) => (
-                <div key={ev.id} className={`event-toast ${ev.type}`}>
-                    <div className="event-icon">
-                        {ev.type === 'success' && '🌟'}
-                        {ev.type === 'warning' && '⚠️'}
-                        {ev.type === 'milestone' && '🧬'}
-                        {ev.type === 'info' && 'ℹ️'}
+            {events.map(event => (
+                <div key={event.id} className={`event-message ${event.type}`}>
+                    <div style={{ fontWeight: 'bold', marginBottom: '2px', fontSize: '0.7rem', opacity: 0.7 }}>
+                        [{new Date(event.timestamp).toLocaleTimeString()}]
                     </div>
-                    <div className="event-content">
-                        {ev.text}
-                    </div>
+                    {event.text}
                 </div>
             ))}
         </div>
