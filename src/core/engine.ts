@@ -117,39 +117,38 @@ export class Engine {
     private checkPhaseProgression() {
         if (this.currentPhase >= 50) return;
 
-        // Sample mass distribution logic
-        // We need to know if "10% of population has reached new mass threshold"
-        // Let's simplified approach: Collect all masses, sort, find 90th percentile.
-        // If 90th percentile mass > Next Phase Threshold, Advance.
+        // PROGRESSION: Every 30 seconds of survival
+        const targetPhase = Math.min(50, Math.floor(this.totalTime / 30) + 1);
 
-        // Count active cells first
-        let masses: number[] = [];
-        for (let i = 0; i < this.storage.maxCells; i++) {
-            if (this.storage.isActive[i]) {
-                masses.push(this.storage.cells[i * this.storage.stride + 6]);
+        if (targetPhase > this.currentPhase) {
+            this.currentPhase = targetPhase;
+            this.onEvent('phase_change', { phase: this.currentPhase });
+            console.log(`>>> PHASE UPGRADE: ${this.currentPhase} (Time: ${this.totalTime.toFixed(1)}s)`);
+        }
+
+        // Victory Condition Check
+        this.checkVictoryCondition();
+    }
+
+    private checkVictoryCondition() {
+        if (this.totalTime < 60) return; // Grace period
+
+        const aliveSpecies = this.speciesTracker.getAliveSpecies();
+        if (aliveSpecies.length === 1 && this.storage.activeCount > 10) {
+            const winner = aliveSpecies[0];
+            const message = `Especie ${winner.name} Domina el Ecosistema`;
+            this.onEvent('victory', { message });
+            if (this.frameCount % 300 === 0) { // Log occasionally
+                console.log(`!!! VICTORY: ${message}`);
             }
         }
+    }
 
-        if (masses.length < 10) return; // Need population to evolve
-
-        // Sort descending
-        masses.sort((a, b) => b - a);
-
-        // Top 10% index
-        const top10Index = Math.floor(masses.length * 0.1);
-        const top10Mass = masses[top10Index];
-
-        // Threshold Logic:
-        // Phase 1 -> 2 requires top 10% to have Mass > 20? 
-        // Let's scale: Phase X target mass = X * 10.
-        // Phase 10 = Mass 100. Phase 50 = Mass 500.
-        const nextPhaseTarget = (this.currentPhase + 1) * 10;
-
-        if (top10Mass >= nextPhaseTarget) {
-            this.currentPhase++;
-            this.onEvent('phase_change', { phase: this.currentPhase });
-            console.log(`>>> PHASE UPGRADE: ${this.currentPhase} (Top10 Mass: ${top10Mass})`);
-        }
+    private getLevel(mass: number): number {
+        if (mass < 50) return 1;
+        if (mass > 1000) return 10;
+        // Linear mapping between 50 and 1000 for levels 2-9
+        return Math.floor(2 + (mass - 50) * 8 / 950);
     }
 
     private applyApexGravity() {
@@ -521,8 +520,7 @@ export class Engine {
 
         // Scaled Feeding: Colonies eat more efficiently (Logarithmic Efficiency)
         if (mass > 2.0) {
-            // Level 1-10 scaling roughly
-            const level = Math.ceil(Math.log10(mass) * 3);
+            const level = this.getLevel(mass);
             energyGain *= (1.0 + level * 0.2);
         }
         energy += energyGain;
@@ -564,13 +562,12 @@ export class Engine {
             // const _myArch = this.storage.cells[idx * this.storage.stride + 5];
 
             // 1. Absorption (The Blob Logic)
-            // Rule: Bigger eats Smaller (REQUIRE 30% ADVANTAGE)
-            // PHASE RULE: Giant Absorption (Phase 41+) ALWAYS eats on contact if > 1.3x
+            // Rule: Bigger eats Smaller (REQUIRE 20% ADVANTAGE as per level/combat rules)
+            // PHASE RULE: Giant Absorption (Phase 41+) ALWAYS eats on contact if > 1.1x
             // Or Standard predation?
-            // "Fases 41-50: Fase de Gigantes. Las colonias grandes absorben a las pequeñas al contacto."
 
-            let absorbThreshold = 1.3;
-            if (this.currentPhase >= 41) absorbThreshold = 1.1; // Aggressive Absorption
+            let absorbThreshold = 1.2; // Combat Threshold: 20% difference
+            if (this.currentPhase >= 41) absorbThreshold = 1.1; // More aggressive in late phases
 
             if (myMass > nMass * absorbThreshold) {
                 // Calculate "Eat Radius" based on mass (Logarithmic)
@@ -595,7 +592,7 @@ export class Engine {
                         }
 
                         // Check versus Defensive Mass
-                        if (myMass > defensiveMass * 1.3) {
+                        if (myMass > defensiveMass * 1.2) { // Combat Threshold: 20%
                             // CONSUME
                             this.storage.cells[idx * this.storage.stride + 6] += nMass; // Absorb Mass
                             this.storage.cells[idx * this.storage.stride + 4] += energy * 0.5; // Absorb portion of energy
@@ -621,8 +618,8 @@ export class Engine {
             const otherAlliance = this.storage.allianceId[neighborIdx];
             const areAllies = myAlliance !== -1 && myAlliance === otherAlliance;
 
-            if (!areAllies && aggressiveness > 0.5 && myMass > nMass * 1.2) {
-                // ... (Stealing logic remains similar or can be deprecated in favor of full absorption for colonies)
+            if (!areAllies && aggressiveness > 0.5 && myMass > nMass * 1.2) { // Combat Threshold: 20%
+                // ... (Stealing logic)
                 const steal = 1.5 * dt;
 
                 // Check for assimilation event (Colony vs Colony)

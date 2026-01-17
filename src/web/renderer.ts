@@ -21,97 +21,95 @@ export class PrimordialRenderer {
         count: number,
         cameraPos: [number, number],
         zoom: number,
-        _allianceId: Int32Array | undefined,
+        allianceId: Int32Array | undefined,
         isActive: Uint8Array,
-        cooldowns?: Float32Array, // New debug param
-        currentPhase: number = 1 // 50-Phase system
+        cooldowns?: Float32Array,
+        currentPhase: number = 1,
+        victoryMessage?: string
     ) {
         const ctx = this.ctx;
         const width = viewportSize[0];
         const height = viewportSize[1];
 
-        // --- 0. SAFETY CHECK ---
         if (width <= 0 || height <= 0) return;
 
-        // --- 1. STRICT FRAME START ---
         ctx.save();
-
-        // Reset transform to identity to ensure clearRect covers the entire physical canvas
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-        // SINGLE CLEAR PER FRAME
         ctx.clearRect(0, 0, width, height);
 
-        // Optional: Draw background if not using transparency
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, width, height);
 
-        // --- 1b. HUD DRAWING (UI Overlay) ---
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(10, 10, 200, 40);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = '16px monospace';
-        ctx.textAlign = 'left';
-
-        // Get Active Count
-        // Optimization: activeCount passed or we count? Engine has activeCount.
-        // For now, renderer doesn't track count globally except via buffer.
-        // We will assume 'count' param is maxCells, actual count is in engine state.
-        // Let's just draw Phase.
-        ctx.fillText(`Fase: ${currentPhase}/50`, 20, 35);
-        // Population is tricky without passing it explicitly, we iterate later.
-        // We can count during loop? No, HUD is drawn first (or last).
-        // Let's draw HUD LAST after restore.
-
-        // --- 2. CAMERA TRANSFORM ---
-        // Center of screen
+        // --- CAMERA TRANSFORM ---
         ctx.translate(width / 2, height / 2);
-        // Apply Zoom
         ctx.scale(zoom, zoom);
-        // Move to world position
         ctx.translate(-cameraPos[0], -cameraPos[1]);
 
-        // --- 3. DRAW ENTITIES (DEPTH SORTED) ---
-        // 3a. Create Index Array of Active Entities
-        const indices: number[] = [];
-        for (let i = 0; i < count; i++) {
-            if (isActive[i] === 1) {
-                indices.push(i);
+        // --- 1. ALLIANCE LINES PASS ---
+        // Restricted to: Same Species AND Same Level
+        if (allianceId) {
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.3;
+            ctx.strokeStyle = '#3366ff'; // Alliance Blue
+
+            // We need a fast way to find alliance partners. 
+            // Since we don't have a spatial grid here, we iterate active pairs? 
+            // No, that's O(N^2). We iterate and map by allianceId.
+            const groups: Map<number, number[]> = new Map();
+            for (let i = 0; i < count; i++) {
+                if (isActive[i] && allianceId[i] !== -1) {
+                    const id = allianceId[i];
+                    if (!groups.has(id)) groups.set(id, []);
+                    groups.get(id)!.push(i);
+                }
             }
+
+            for (const members of groups.values()) {
+                if (members.length < 2) continue;
+                for (let j = 0; j < members.length; j++) {
+                    for (let k = j + 1; k < members.length; k++) {
+                        const idxA = members[j];
+                        const idxB = members[k];
+                        const offA = idxA * this.STRIDE;
+                        const offB = idxB * this.STRIDE;
+
+                        // Constraint: Same Species & Same Level
+                        const specA = cells[offA + 7];
+                        const specB = cells[offB + 7];
+                        if (specA !== specB) continue;
+
+                        const massA = cells[offA + 6];
+                        const massB = cells[offB + 6];
+                        const lvlA = this.getLevel(massA);
+                        const lvlB = this.getLevel(massB);
+                        if (lvlA !== lvlB) continue;
+
+                        ctx.beginPath();
+                        ctx.moveTo(cells[offA], cells[offA + 1]);
+                        ctx.lineTo(cells[offB], cells[offB + 1]);
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.globalAlpha = 1.0;
         }
 
-        // 3b. Sort by Mass (Descending: Largest First -> Bottom Layer)
-        // Depth Sort: Draw Smallest First, Largest Last (On Top)
-        indices.sort((a, b) => {
-            const massA = cells[a * this.STRIDE + 6];
-            const massB = cells[b * this.STRIDE + 6];
-            return massA - massB; // Ascending
-        });
+        // --- 2. DRAW ENTITIES (DEPTH SORTED) ---
+        const indices: number[] = [];
+        for (let i = 0; i < count; i++) if (isActive[i]) indices.push(i);
 
-        ctx.globalAlpha = 1.0; // Enforce Opaqueness
+        indices.sort((a, b) => cells[a * this.STRIDE + 6] - cells[b * this.STRIDE + 6]);
 
         for (const i of indices) {
             const offset = i * this.STRIDE;
-
             const x = cells[offset];
             const y = cells[offset + 1];
-
-            // Validation
-            if (Number.isNaN(x) || Number.isNaN(y)) continue;
-
-            const energy = cells[offset + 4]; // Should be handled by isActive, but double check
-            if (energy <= 0) continue;
-
             const mass = cells[offset + 6];
             const arch = cells[offset + 5];
 
-            // Radius Logic: 10-Level System
-            // Level 1: Mass 10, Level 10: Mass 500
-            // Formula: Level = Clamped(1, 10, Ceil(Mass / 50))
-            const level = Math.max(1, Math.min(10, Math.ceil(mass / 50)));
-            const visualRadius = Math.max(3.0, level * 4); // +4px per level
+            const level = this.getLevel(mass);
+            const visualRadius = Math.max(3.0, level * 4);
 
-            // Color Logic (Same as before)
             let color = '#ff00ff';
             switch (Math.floor(arch)) {
                 case 1: color = '#ff3333'; break;
@@ -121,91 +119,64 @@ export class PrimordialRenderer {
                 default: color = '#888888'; break;
             }
 
-            // --- ALLIANCE LINES (Blue) - Phase 11+ ---
-            // Only draw if we are in Phase 11 or higher (Need to know phase here)
-            // Ideally we need currentPhase passed to render.
-            // For now, assuming always on or check outside.
-            // Wait, we need to pass `currentPhase` to render function!
-
-            // Draw Entity
             ctx.beginPath();
             ctx.arc(x, y, visualRadius, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
 
-            // VISIBILITY & COLONY DISTINCTION
             ctx.strokeStyle = '#ffffff';
-            // If Colony (Mass > 10 or Level > 1), use thick line
-            if (mass > 10.0 || level > 1) {
-                ctx.lineWidth = 3; // Distinctive Colony Thickness
-            } else {
-                ctx.lineWidth = 1; // Standard Cell
-            }
+            ctx.lineWidth = (mass > 50 || level > 1) ? 3 : 1;
             ctx.stroke();
 
-            // --- LEVEL 5+ AURA ---
             if (level >= 5) {
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = color;
-                ctx.globalAlpha = 0.3;
-                ctx.beginPath();
-                ctx.arc(x, y, visualRadius + 5, 0, Math.PI * 2);
-                ctx.stroke();
+                ctx.lineWidth = 2; ctx.strokeStyle = color; ctx.globalAlpha = 0.3;
+                ctx.beginPath(); ctx.arc(x, y, visualRadius + 5, 0, Math.PI * 2); ctx.stroke();
                 ctx.globalAlpha = 1.0;
             }
-
-            // --- LEVEL 10 GOLDEN BORDER ---
             if (level >= 10) {
-                ctx.lineWidth = 4;
-                ctx.strokeStyle = '#FFD700'; // Gold
-                ctx.beginPath();
-                ctx.arc(x, y, visualRadius, 0, Math.PI * 2);
-                ctx.stroke();
+                ctx.lineWidth = 4; ctx.strokeStyle = '#FFD700';
+                ctx.beginPath(); ctx.arc(x, y, visualRadius, 0, Math.PI * 2); ctx.stroke();
             }
-
-            // --- LEVEL 8+ SATELLITES ---
             if (level >= 8) {
                 const time = performance.now() * 0.002;
                 const satCount = 3 + (level - 8);
                 for (let s = 0; s < satCount; s++) {
                     const angle = time + (s * (Math.PI * 2 / satCount));
-                    const sx = x + Math.cos(angle) * (visualRadius + 10);
-                    const sy = y + Math.sin(angle) * (visualRadius + 10);
-
                     ctx.beginPath();
-                    ctx.arc(sx, sy, 3, 0, Math.PI * 2);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fill();
+                    ctx.arc(x + Math.cos(angle) * (visualRadius + 10), y + Math.sin(angle) * (visualRadius + 10), 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff'; ctx.fill();
                 }
             }
-
-            // --- DEBUG: NEW REGISTRATION FLASH (Rescate) ---
             if (cooldowns && cooldowns[i] > 2.8) {
-                ctx.lineWidth = 3;
-                ctx.strokeStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(x, y, visualRadius + 15, 0, Math.PI * 2);
-                ctx.stroke();
+                ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff';
+                ctx.beginPath(); ctx.arc(x, y, visualRadius + 15, 0, Math.PI * 2); ctx.stroke();
             }
-
-            ctx.closePath();
         }
 
-        // --- 4b. ALLIANCE LINKS PASS (Separate Loop for Layering) ---
-        // To avoid Z-issues, lines should ideally be behind/above.
-        // Doing a simple separate pass for lines if performance allows.
-        if (_allianceId) {
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.4;
-            // Simplified: Iterate raw active indices. If adjacent in array (spatial locality implies index locality?) no.
-            // Using Spatial Grid from engine in renderer is hard because renderer doesn't have grid ref.
-            // We will IMPLEMENT A REDUCED DRAW for now or skip to save FPS if count > 1000.
-            // Actually, let's skip complex line drawing here to prevent huge lag spikes on 1000 entities.
-            // Leaving "Alliance Lines" as a TODO or implementing strictly for high-levels?
-            // "Si dos colonias..." -> implies interactions.
-        }
-
-        // --- 4. RESTORE STATE ---
         ctx.restore();
+
+        // --- 3. HUD PASS (Fixed Screen Space) ---
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.fillRect(10, 10, 240, 50);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 18px monospace';
+        ctx.fillText(`FASE: ${currentPhase}/50`, 25, 42);
+
+        if (victoryMessage) {
+            ctx.fillStyle = 'rgba(0, 50, 0, 0.8)';
+            ctx.fillRect(width / 2 - 250, 100, 500, 60);
+            ctx.fillStyle = '#ffff00';
+            ctx.font = 'bold 24px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(victoryMessage, width / 2, 140);
+        }
+        ctx.restore();
+    }
+
+    private getLevel(mass: number): number {
+        if (mass < 50) return 1;
+        if (mass > 1000) return 10;
+        return Math.floor(2 + (mass - 50) * 8 / 950);
     }
 }

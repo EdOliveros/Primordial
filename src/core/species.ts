@@ -75,4 +75,12 @@ export class SpeciesTracker {
     prune() {
         this.speciesList = this.speciesList.filter(s => s.population > 0);
     }
+
+    getAliveSpecies() {
+        // speciesList is already pruned to only those with population > 0
+        return this.speciesList.map(s => ({
+            id: s.id,
+            name: `Species-${s.id}` // Generic name for now
+        }));
+    }
 }

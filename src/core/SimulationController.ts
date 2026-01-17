@@ -24,11 +24,13 @@ export class SimulationController {
     public onFPS: (fps: number) => void = () => { };
     public onFrame: (frameCount: number) => void = () => { };
     public onInspector: (cell: any) => void = () => { };
+    public onEvent: (message: string) => void = () => { }; // Added to handle engine events
 
     public cameraPos: [number, number] = [500, 500]; // Center of 1000x1000 world
     public zoom = 1.0; // Locked zoom
     public followingIdx: number | null = null;
     public inspectedCell: any = null;
+    private victoryMessage: string | undefined = undefined;
 
     private animationId: number | null = null;
 
@@ -47,6 +49,15 @@ export class SimulationController {
         // Ensure renderer starts with correct size
         this.renderer.resize(canvas.width, canvas.height);
         this.engine = new Engine(1000, 100000);
+
+        // Link Engine Events
+        this.engine.onEvent = (type, data) => {
+            if (type === 'victory') {
+                this.victoryMessage = data.message;
+            }
+            // Bubble up other events if needed
+            this.onEvent(`[${type.toUpperCase()}] ${JSON.stringify(data)}`);
+        };
     }
 
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
@@ -305,7 +316,8 @@ export class SimulationController {
                     this.engine.storage.allianceId,
                     this.engine.storage.isActive, // Pass isActive for strict filtering
                     this.engine.storage.cooldowns, // Pass cooldowns for debug visuals
-                    this.engine.currentPhase // Pass Phase for Visuals/HUD
+                    this.engine.currentPhase, // Pass Phase for Visuals/HUD
+                    this.victoryMessage
                 );
             }
         } catch (e) {
@@ -364,8 +376,6 @@ export class SimulationController {
         // Save snapshot (clone to avoid reference issues)
         this.previousTelemetry = JSON.parse(JSON.stringify(tel));
     }
-
-    public onEvent: (msg: string) => void = () => { };
 
     public resize(width: number, height: number) {
         this.canvas.width = width;
