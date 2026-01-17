@@ -147,19 +147,55 @@ export class Engine {
                 }
             }
 
-            if (alliance.length > 1) {
-                // Register valid alliance
+            // ALLIANCE FUSION LOGIC (Super-Colony)
+            // Check for triangles of alliances that are close enough to fuse
+            if (alliance.length >= 3) {
+                // Register Valid Alliance
                 for (const member of alliance) {
                     this.storage.allianceId[member] = nextAllianceId;
                 }
 
-                // Trigger Event if size >= 3 (Significant Alliance)
-                if (alliance.length >= 3) {
-                    const sampleGenome = this.storage.getGenome(alliance[0]);
-                    const geneColor = this.getDominantArchetype(sampleGenome);
-                    this.onEvent('alliance', { color: geneColor, count: alliance.length });
+                // Check Fusion Condition: Total Mass > Threshold AND Proximity
+                let totalAllianceMass = 0;
+                let cx = 0, cy = 0;
+                for (const m of alliance) {
+                    totalAllianceMass += this.storage.cells[m * this.storage.stride + 6];
+                    cx += this.storage.getX(m);
+                    cy += this.storage.getY(m);
                 }
+                cx /= alliance.length;
+                cy /= alliance.length;
 
+                // If HUGE alliance, FUSE into SUPER COLONY
+                if (totalAllianceMass > 100) {
+                    // Determine dominant genome
+                    const bestMember = alliance.reduce((prev, curr) =>
+                        this.storage.getEnergy(curr) > this.storage.getEnergy(prev) ? curr : prev
+                    );
+                    const superGenome = this.storage.getGenome(bestMember);
+
+                    // Spawn Super Colony
+                    const superIdx = this.storage.spawn(cx, cy, superGenome);
+                    if (superIdx !== -1) {
+                        const off = superIdx * this.storage.stride;
+                        this.storage.cells[off + 6] = totalAllianceMass * 1.1; // 10% synergy bonus
+                        this.storage.cells[off + 4] = 5000; // Massive Energy
+                        this.storage.cells[off + 7] = -1.0; // Glow
+
+                        // Remove old parts
+                        alliance.forEach(m => this.storage.remove(m));
+
+                        const color = this.getDominantArchetype(superGenome);
+                        this.onEvent('fusion', { color, mass: totalAllianceMass });
+                    }
+                } else {
+                    // Just normal alliance notification
+                    if (alliance.length >= 3) {
+                        const sampleGenome = this.storage.getGenome(alliance[0]);
+                        const geneColor = this.getDominantArchetype(sampleGenome);
+                        this.onEvent('alliance', { color: geneColor, count: alliance.length });
+                    }
+                }
                 nextAllianceId++;
             }
         }
@@ -323,9 +359,11 @@ export class Engine {
         const solarIntensity = this.environment.getSolarIntensity(x, y);
         let energyGain = (solarIntensity * photoEfficiency * 45.0 * this.foodAbundance) * dt;
 
-        // Scaled Feeding: Colonies eat more efficiently
+        // Scaled Feeding: Colonies eat more efficiently (Logarithmic Efficiency)
         if (mass > 2.0) {
-            energyGain *= (1.0 + Math.log2(mass)); // Diminishing returns scaling
+            // Level 1-10 scaling roughly
+            const level = Math.ceil(Math.log10(mass) * 3);
+            energyGain *= (1.0 + level * 0.2);
         }
         energy += energyGain;
 
@@ -352,19 +390,36 @@ export class Engine {
 
             const nGenome = this.storage.getGenome(neighborIdx);
 
-            // Absorption: Individual touching Colony
+            // --- COLOSTY SYSTEM: 10-Level Logarithmic Growth ---
             const nMass = this.storage.cells[neighborIdx * this.storage.stride + 6];
             const myMass = this.storage.cells[idx * this.storage.stride + 6];
             const nArch = this.storage.cells[neighborIdx * this.storage.stride + 5];
             const myArch = this.storage.cells[idx * this.storage.stride + 5];
 
-            if (nMass > 5.0 && myMass < 5.0 && nArch === myArch) {
-                if (distSq < (nMass * 2)) { // Absorption radius grows with mass
-                    // Absorb me into neighbor colony
-                    const nOffset = neighborIdx * this.storage.stride;
-                    this.storage.cells[nOffset + 6] += myMass; // Add mass
-                    this.storage.cells[nOffset + 4] += energy; // Add energy
-                    energy = -100; // Kill me
+            // 1. Absorption (The Blob Logic)
+            // Rule: Bigger eats Smaller (if diff > 20% and compatible-ish or aggressive)
+            if (myMass > nMass * 1.2) {
+                // Calculate "Eat Radius" based on mass (Logarithmic)
+                const eatRadiusSq = (8.0 * (1.0 + Math.log(myMass) * 1.5)) ** 2; // Match visual radius somewhat
+
+                if (distSq < eatRadiusSq * 1.2) { // Tolerance
+                    // Check Alliance protection
+                    const myAlliance = this.storage.allianceId[idx];
+                    const nAlliance = this.storage.allianceId[neighborIdx];
+                    const areAllies = myAlliance !== -1 && myAlliance === nAlliance;
+
+                    if (!areAllies) {
+                        // CONSUME
+                        this.storage.cells[idx * this.storage.stride + 6] += nMass; // Absorb Mass
+                        this.storage.cells[idx * this.storage.stride + 4] += energy * 0.5; // Absorb portion of energy
+                        this.storage.remove(neighborIdx);
+
+                        // Notify if significant
+                        if (nMass > 5.0) {
+                            this.onEvent('absorption', { mass: nMass });
+                        }
+                        return; // Done processing this neighbor
+                    }
                 }
             }
 

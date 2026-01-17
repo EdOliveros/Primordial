@@ -1,52 +1,57 @@
 export const VERTEX_SHADER = `#version 300 es
-layout(location = 0) in vec2 aQuadPos;
-// Instance Attributes
-layout(location = 1) in vec2 aWorldPos;
-layout(location = 2) in vec2 aVel;
-layout(location = 3) in float aEnergy;
-layout(location = 4) in float aArch;
-layout(location = 5) in float aMass;
+layout(location = 0) in vec2 aPos;       // Quad vertices
+layout(location = 1) in vec2 aWorldPos;  // Instance Position
+layout(location = 2) in vec2 aVel;       // Instance Velocity
+layout(location = 3) in float aEnergy;   // Instance Energy
+layout(location = 4) in float aArch;     // Instance Archetype
+layout(location = 5) in float aMass;     // Instance Mass
 
-uniform vec2 uViewportSize;
-uniform vec2 uCameraPos;
+uniform vec2 uViewport;
+uniform vec2 uCamera;
 uniform float uZoom;
-uniform float uCellSize;
 
-out vec4 vColor;
+out vec3 vColor;
 out float vGlow;
-out vec2 vQuadPos;
 out float vMass;
 
 void main() {
-    // 1. Frustum Culling & Activity Check
-    if (aEnergy <= 0.0) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-        return;
-    }
-
-    vec2 viewPos = (aWorldPos - uCameraPos) * uZoom;
-
-    // Simple culling: if outside NDC range (+ margin for cell size)
-    float margin = uCellSize * uZoom + 10.0;
-    if (abs(viewPos.x) > uViewportSize.x * 0.5 + margin || 
-        abs(viewPos.y) > uViewportSize.y * 0.5 + margin) {
-        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-        return;
-    }
-
-    // 2. Color Classification
-    int arch = int(aArch);
-    vec3 color = vec3(0.4);
-    float glow = 0.0;
+    // 10-Level Logarithmic Scale
+    // Base radius = 8.0 (at mass 1)
+    // Max radius = 80.0 (at mass 1000+)
+    float radius = 8.0 * (1.0 + log(aMass) * 1.5); 
     
-    if (arch == 1) { color = vec3(1.0, 0.0, 0.2); glow = 1.0; } // Pred
-    if (arch == 2) { color = vec3(0.2, 1.0, 0.0); glow = 1.0; } // Prod
-    if (arch == 3) { color = vec3(0.0, 0.8, 1.0); glow = 1.0; } // Tank
-    if (arch == 4) { color = vec3(1.0, 1.0, 1.0); glow = 1.0; } // Speed
+    // Scale by Zoom
+    float size = radius * uZoom;
 
-    vColor = vec4(color, 1.0);
+    // Quad expansion
+    vec2 offset = aPos * size; 
+    vec2 worldPos = aWorldPos + offset;
+
+    // Camera Transform
+    vec2 viewPos = (worldPos - uCamera) * uZoom;
+    
+    // Map to NDC [-1, 1]
+    vec2 ndc = viewPos / (uViewport * 0.5);
+
+    gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
+
+    // Color Logic (Simplified for Shader)
+    vec3 color = vec3(0.5); // Default grey
+    float glow = 0.0;
+
+    int arch = int(aArch);
+    if (arch == 1) { color = vec3(1.0, 0.2, 0.2); glow = 0.5; } // Predator
+    else if (arch == 2) { color = vec3(0.2, 1.0, 0.2); glow = 0.3; } // Producer
+    else if (arch == 3) { color = vec3(0.0, 0.5, 1.0); glow = 0.2; } // Tank
+    else if (arch == 4) { color = vec3(1.0, 1.0, 1.0); glow = 0.8; } // Speedster
+    
+    // Colony Glow (Special Flag in color logic or passed differently)
+    if (aMass > 1.5) {
+        glow += 0.5; // Colonies glow more
+    }
+
+    vColor = color;
     vGlow = glow;
-    vQuadPos = aQuadPos;
     vMass = aMass;
     
     // 3. Transform
