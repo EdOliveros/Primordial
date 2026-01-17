@@ -16,9 +16,12 @@ out float vMass;
 
 void main() {
     // 10-Level Logarithmic Scale
-    // Base radius = 8.0 (at mass 1) -> effectively 2 * uCellSize (if 4.0)
+    // Safety: Clamp mass to min 1.0 to avoid log(0) = -Infinity
+    float safeMass = max(1.0, aMass);
+    
+    // Base radius = 8.0 (at mass 1)
     // Max radius = 80.0 (at mass 1000+)
-    float radius = 8.0 * (1.0 + log(aMass) * 1.5); 
+    float radius = 8.0 * (1.0 + log(safeMass) * 1.5); 
     
     // Scale by Zoom
     float size = radius * uZoom;
