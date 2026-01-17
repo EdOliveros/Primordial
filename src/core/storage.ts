@@ -4,7 +4,7 @@
  * 
  * Layout per Cell (16 floats stride):
  * 0: x, 1: y, 2: vx, 3: vy
- * 4: energy, 5: archIdx, 6: age, 7: speciesId/metadata
+ * 4: energy, 5: archIdx, 6: mass, 7: speciesId/metadata
  * 8-15: genome (8 genes)
  */
 export class CellStorage {
@@ -68,8 +68,8 @@ export class CellStorage {
 
         this.cells[offset + 4] = 100.0; // Energy
         this.nextCells[offset + 4] = 100.0;
-        this.cells[offset + 6] = 0.0;   // Age
-        this.nextCells[offset + 6] = 0.0;
+        this.cells[offset + 6] = 1.0;   // Mass (defaults to 1.0 for individuals)
+        this.nextCells[offset + 6] = 1.0;
 
         for (let i = 0; i < 8; i++) {
             this.cells[offset + 8 + i] = genome[i];

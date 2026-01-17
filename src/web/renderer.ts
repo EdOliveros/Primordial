@@ -5,6 +5,7 @@ layout(location = 1) in vec2 aWorldPos;
 layout(location = 2) in vec2 aVel;
 layout(location = 3) in float aEnergy;
 layout(location = 4) in float aArch;
+layout(location = 5) in float aMass;
 
 uniform vec2 uViewportSize;
 uniform vec2 uCameraPos;
@@ -45,7 +46,8 @@ void main() {
     vGlow = glow;
     
     // 3. Transform
-    vec2 pos = aQuadPos * uCellSize * uZoom + viewPos;
+    float sizeMult = max(1.0, log2(aMass)); // Scale size logarithmically with mass
+    vec2 pos = aQuadPos * uCellSize * uZoom * sizeMult + viewPos;
     vec2 ndc = pos / (uViewportSize * 0.5); 
     gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 }
@@ -200,6 +202,11 @@ export class PrimordialRenderer {
         gl.enableVertexAttribArray(4);
         gl.vertexAttribPointer(4, 1, gl.FLOAT, false, stride, 5 * 4);
         gl.vertexAttribDivisor(4, 1);
+
+        // Location 5: aMass
+        gl.enableVertexAttribArray(5);
+        gl.vertexAttribPointer(5, 1, gl.FLOAT, false, stride, 6 * 4);
+        gl.vertexAttribDivisor(5, 1);
     }
 
     private createTexture(w: number, h: number): WebGLTexture {

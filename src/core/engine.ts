@@ -86,6 +86,104 @@ export class Engine {
         const temp = this.storage.cells;
         this.storage.cells = this.storage.nextCells;
         this.storage.nextCells = temp;
+
+        // 6. Swarm Logic (Every 30 frames)
+        if (this.frameCount % 30 === 0) {
+            this.checkSwarmDensity();
+        }
+    }
+
+    private checkSwarmDensity() {
+        // Enforce MAX_ENTITIES by lowering density threshold
+        const MAX_ENTITIES = 2000;
+        let densityThreshold = 15;
+        let searchRadius = 50;
+
+        // Aggressive fusion if over population limit
+        if (this.storage.activeCount > MAX_ENTITIES) {
+            densityThreshold = 5; // Merge much more aggressively
+            searchRadius = 80;
+        }
+
+        const visited = new Set<number>();
+        const toMerge: number[][] = [];
+
+        // Identify clusters
+        for (let i = 0; i < this.storage.maxCells; i++) {
+            if (!this.storage.isActive[i] || visited.has(i)) continue;
+
+            const cluster: number[] = [i];
+            const x = this.storage.getX(i);
+            const y = this.storage.getY(i);
+            const mySpecies = this.storage.cells[i * this.storage.stride + 5]; // Archetype as proxy for species
+
+            // Query neighbors
+            this.spatialGrid.query(x, y, searchRadius, (nIdx) => {
+                if (nIdx === i || visited.has(nIdx)) return;
+
+                // Check if same species/archetype
+                const nArch = this.storage.cells[nIdx * this.storage.stride + 5];
+                if (nArch === mySpecies) {
+                    cluster.push(nIdx);
+                    visited.add(nIdx);
+                }
+            });
+
+            if (cluster.length > densityThreshold) {
+                toMerge.push(cluster);
+                cluster.forEach(idx => visited.add(idx));
+            }
+        }
+
+        // Execute Mergers
+        toMerge.forEach(cluster => this.formColony(cluster));
+    }
+
+    private formColony(clusterIndices: number[]) {
+        let totalMass = 0;
+        let avgX = 0;
+        let avgY = 0;
+        let bestGenome: Float32Array | null = null;
+        let maxEnergy = -1;
+
+        // Calculate centroid and total properties
+        clusterIndices.forEach(idx => {
+            const offset = idx * this.storage.stride;
+            const mass = this.storage.cells[offset + 6]; // Mass is at offset 6
+            const energy = this.storage.cells[offset + 4];
+
+            totalMass += mass;
+            avgX += this.storage.getX(idx);
+            avgY += this.storage.getY(idx);
+
+            // Inherit genome from most energetic cell (survival of the fittest)
+            if (energy > maxEnergy) {
+                maxEnergy = energy;
+                bestGenome = this.storage.getGenome(idx);
+            }
+
+            // Despawn individual
+            this.storage.remove(idx);
+        });
+
+        if (!bestGenome) return;
+
+        avgX /= clusterIndices.length;
+        avgY /= clusterIndices.length;
+
+        // Spawn Super-Entity (Colony)
+        const newIdx = this.storage.spawn(avgX, avgY, bestGenome);
+        if (newIdx !== -1) {
+            // Set properties
+            const offset = newIdx * this.storage.stride;
+            this.storage.cells[offset + 6] = totalMass; // Set total mass
+            this.storage.cells[offset + 4] = maxEnergy + (totalMass * 10); // Bonus energy
+            this.storage.cells[offset + 3] = 0; // Reset velocity
+            this.storage.cells[offset + 2] = 0;
+
+            // Highlight visually as Colony (Glow)
+            this.storage.cells[offset + 7] = -1.0;
+        }
     }
 
     private processCell(idx: number, dt: number) {
@@ -131,8 +229,24 @@ export class Engine {
 
             const nGenome = this.storage.getGenome(neighborIdx);
 
+            // Absorption: Individual touching Colony
+            const nMass = this.storage.cells[neighborIdx * this.storage.stride + 6];
+            const myMass = this.storage.cells[idx * this.storage.stride + 6];
+            const nArch = this.storage.cells[neighborIdx * this.storage.stride + 5];
+            const myArch = this.storage.cells[idx * this.storage.stride + 5];
+
+            if (nMass > 5.0 && myMass < 5.0 && nArch === myArch) {
+                if (distSq < (nMass * 2)) { // Absorption radius grows with mass
+                    // Absorb me into neighbor colony
+                    const nOffset = neighborIdx * this.storage.stride;
+                    this.storage.cells[nOffset + 6] += myMass; // Add mass
+                    this.storage.cells[nOffset + 4] += energy; // Add energy
+                    energy = -100; // Kill me
+                }
+            }
+
             // Predation
-            if (energy < this.HUNGER_THRESHOLD && nGenome[4] < aggressiveness) {
+            if (energy < this.HUNGER_THRESHOLD && nGenome[4] < aggressiveness && myMass >= nMass) {
                 if (distSq < minDist) {
                     minDist = distSq;
                     bestTarget = neighborIdx;
