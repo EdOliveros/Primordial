@@ -139,6 +139,7 @@ export class PrimordialRenderer {
     private gl: WebGL2RenderingContext;
     private program: WebGLProgram;
     private bloomProgram: WebGLProgram;
+    private allianceProgram: WebGLProgram | null = null; // Guard against null
 
     private quadVAO!: WebGLVertexArrayObject;
     private instanceBuffer!: WebGLBuffer;
@@ -204,16 +205,37 @@ export class PrimordialRenderer {
             console.error("Fragment Shader Error:", gl.getShaderInfoLog(fs));
         }
 
-        const prog = gl.createProgram()!;
-        gl.attachShader(prog, vs);
-        gl.attachShader(prog, fs);
-        gl.linkProgram(prog);
-
-        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-            console.error("Program Link Error:", gl.getProgramInfoLog(prog));
-        }
-
         return prog;
+    }
+
+    private initPrograms() {
+        this.program = this.createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+        this.bloomProgram = this.createProgram(BLOOM_VERTEX, BLOOM_FRAGMENT);
+
+        // Initialize Alliance Program
+        this.initAllianceProgram();
+    }
+
+    private initAllianceProgram() {
+        const ALLIANCE_VS = `#version 300 es
+        layout(location = 0) in vec2 aPos;
+        uniform vec2 uViewport;
+        uniform vec2 uCamera;
+        uniform float uZoom;
+        void main() {
+            vec2 viewPos = (aPos - uCamera) * uZoom;
+            vec2 ndc = viewPos / (uViewport * 0.5);
+            gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
+        }`;
+
+        const ALLIANCE_FS = `#version 300 es
+        precision mediump float;
+        out vec4 outColor;
+        void main() {
+            outColor = vec4(0.0, 1.0, 1.0, 0.3); // Cyan, faint
+        }`;
+
+        this.allianceProgram = this.createProgram(ALLIANCE_VS, ALLIANCE_FS);
     }
 
     private initBuffers() {
