@@ -103,7 +103,7 @@ const App: React.FC = () => {
                     </div>
 
                     <div style={{ pointerEvents: 'auto' }}>
-                        <InfoPanel telemetry={telemetry} />
+                        <InfoPanel telemetry={telemetry} onRegisterEvent={handleEvent} />
                     </div>
 
                     {/* Event Log receives no pointer events (click-through) */}
