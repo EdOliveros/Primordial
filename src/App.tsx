@@ -15,7 +15,15 @@ const App: React.FC = () => {
     const [uiVisible, setUiVisible] = useState(true);
     const [events, setEvents] = useState<GameEvent[]>([]);
 
+    const [hasSave, setHasSave] = useState(false);
+
     const controllerRef = useRef<SimulationController | null>(null);
+
+    useEffect(() => {
+        // Check for save on mount
+        const save = localStorage.getItem('primordial_save');
+        if (save) setHasSave(true);
+    }, []);
 
     // Global Key Listener for "Cinematic Mode"
     React.useEffect(() => {
@@ -59,6 +67,24 @@ const App: React.FC = () => {
         }
     };
 
+    const handleContinue = () => {
+        if (controllerRef.current) {
+            controllerRef.current.onEvent = handleEvent;
+            const success = controllerRef.current.loadState();
+            if (success) {
+                setIsRunning(true);
+                handleEvent("♻️ Evolución Restaurada Correctamente");
+            } else {
+                alert("Error al cargar la partida.");
+            }
+        }
+    };
+
+    const handleClearSave = () => {
+        localStorage.removeItem('primordial_save');
+        setHasSave(false);
+    };
+
     const handleFollow = () => {
         controllerRef.current?.follow();
     };
@@ -79,7 +105,12 @@ const App: React.FC = () => {
             />
 
             {!isRunning ? (
-                <StartScreen onStart={handleStart} />
+                <StartScreen
+                    onStart={handleStart}
+                    hasSave={hasSave}
+                    onContinue={handleContinue}
+                    onClear={handleClearSave}
+                />
             ) : (
                 <div style={{
                     opacity: uiVisible ? 1 : 0,

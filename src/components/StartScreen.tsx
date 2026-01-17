@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 
 interface StartScreenProps {
     onStart: (settings: { count: number, mutation: number, food: number, friction: number }) => void;
+    hasSave?: boolean;
+    onContinue?: () => void;
+    onClear?: () => void;
 }
 
-const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
+const StartScreen: React.FC<StartScreenProps> = ({ onStart, hasSave, onContinue, onClear }) => {
     const [settings, setSettings] = useState({
         count: 2000,
         mutation: 1.0,
@@ -16,10 +19,18 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
 
     const handleInitiate = () => {
         setIsExiting(true);
-        // Delay the start slightly to allow for an exit animation if needed
         setTimeout(() => {
             onStart(settings);
         }, 800);
+    };
+
+    const handleContinueClick = () => {
+        if (onContinue) {
+            setIsExiting(true);
+            setTimeout(() => {
+                onContinue();
+            }, 800);
+        }
     };
 
     return (
@@ -30,6 +41,28 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
                     <h1>PRIMORDIAL</h1>
                     <span className="subtitle">Evolution Simulator</span>
                 </div>
+
+                {hasSave && (
+                    <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(0, 255, 100, 0.1)', border: '1px solid var(--neon-green)', borderRadius: '8px' }}>
+                        <div style={{ color: '#fff', marginBottom: '10px', fontSize: '0.9rem' }}>✨ Evolución Previa Detectada</div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                className="btn-launch"
+                                style={{ background: 'var(--neon-green)', color: '#000', fontSize: '0.9rem', padding: '10px' }}
+                                onClick={handleContinueClick}
+                            >
+                                CONTINUAR EVOLUCIÓN
+                            </button>
+                            <button
+                                className="btn-launch"
+                                style={{ background: 'rgba(255, 50, 50, 0.2)', border: '1px solid #f55', fontSize: '0.8rem', width: 'auto' }}
+                                onClick={onClear}
+                            >
+                                BORRAR
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="slider-group">
                     <div className="slider-header">

@@ -65,6 +65,100 @@ export class SimulationController {
 
         this.isSimulationRunning = true;
         this.loop();
+        this.startAutoSave();
+    }
+
+    public startAutoSave() {
+        setInterval(() => {
+            if (this.isSimulationRunning) {
+                this.saveState();
+            }
+        }, 10000);
+    }
+
+    public saveState() {
+        try {
+            const activeCells = [];
+            const storage = this.engine.storage;
+
+            for (let i = 0; i < storage.maxCells; i++) {
+                if (storage.isActive[i]) {
+                    const offset = i * storage.stride;
+                    // Compact format: [x, y, vx, vy, energy, ...genome(8), color]
+                    // To save space, we might reconstruct colors on load, but saving genome is critical.
+                    const genome = [];
+                    for (let g = 0; g < 8; g++) genome.push(parseFloat(storage.cells[offset + 8 + g].toFixed(3)));
+
+                    activeCells.push([
+                        Math.round(storage.cells[offset]), // x
+                        Math.round(storage.cells[offset + 1]), // y
+                        parseFloat(storage.cells[offset + 4].toFixed(1)), // energy
+                        ...genome
+                    ]);
+                }
+            }
+
+            const saveData = {
+                timestamp: Date.now(),
+                settings: {
+                    mutation: this.engine.storage.globalMutationRate,
+                    friction: this.engine.storage.friction,
+                    food: this.engine.environment.solarConstant // Approximation
+                },
+                cells: activeCells
+            };
+
+            localStorage.setItem('primordial_save', JSON.stringify(saveData));
+            // Optional: Trigger a small notification event if linked? 
+            // Better not spam user every 10s.
+        } catch (e) {
+            console.error("Auto-save failed (Quota?):", e);
+        }
+    }
+
+    public loadState(): boolean {
+        try {
+            const raw = localStorage.getItem('primordial_save');
+            if (!raw) return false;
+
+            const data = JSON.parse(raw);
+
+            // Clear current world
+            this.engine.storage.init(this.engine.storage.maxCells); // Reset buffers
+
+            // Apply settings
+            if (data.settings) {
+                this.engine.storage.globalMutationRate = data.settings.mutation || 1.0;
+                this.engine.storage.friction = data.settings.friction || 0.98;
+                // Environmental settings might need more direct access if extended
+            }
+
+            // Spawn cells
+            // Format: [x, y, energy, g0...g7]
+            for (const cellData of data.cells) {
+                const x = cellData[0];
+                const y = cellData[1];
+                const energy = cellData[2];
+                const genome = cellData.slice(3, 11);
+
+                const idx = this.engine.storage.spawn(x, y, genome);
+                if (idx !== -1) {
+                    this.engine.storage.setEnergy(idx, energy);
+                }
+            }
+
+            this.isSimulationRunning = true;
+            this.loop();
+            this.startAutoSave();
+            return true;
+        } catch (e) {
+            console.error("Failed to load save:", e);
+            return false;
+        }
+    }
+
+    public clearSave() {
+        localStorage.removeItem('primordial_save');
     }
 
     public stop() {
