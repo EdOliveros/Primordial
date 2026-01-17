@@ -228,7 +228,7 @@ export class PrimordialRenderer {
         gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
-    private drawWorldBoundary(viewportSize: [number, number], cameraPos: [number, number], zoom: number) {
+    private drawWorldBoundary(_viewportSize: [number, number], _cameraPos: [number, number], _zoom: number) {
         // Method implemented to prevent crash. 
         // Boundary rendering is implicitly handled by camera constraints (0-1000).
     }

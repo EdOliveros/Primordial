@@ -40,7 +40,7 @@ async function runSpeciesDemo() {
         engine.update(dt);
 
         if (i % 60 === 0) {
-            console.log(`\nStep ${i} | Alive: ${engine.storage.activeCells}`);
+            console.log(`\nStep ${i} | Alive: ${engine.storage.activeCount}`);
 
             // Show top 5 species by population
             const topSpecies = [...engine.speciesTracker.speciesList]

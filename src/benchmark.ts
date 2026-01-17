@@ -25,7 +25,7 @@ async function runBenchmark() {
     // 2. Quadtree Rebuild
     console.time("Quadtree Build");
     quadtree.clear();
-    for (let i = 0; i < storage.activeCells; i++) {
+    for (let i = 0; i < storage.activeCount; i++) {
         quadtree.insert(i);
     }
     console.timeEnd("Quadtree Build");

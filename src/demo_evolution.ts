@@ -32,23 +32,12 @@ async function runEvolutionDemo() {
         engine.update(dt);
 
         if (frame % 20 === 0) {
-            let totalEnergy = 0;
-            let avgAggressiveness = 0;
-            for (let i = 0; i < engine.storage.activeCells; i++) {
-                totalEnergy += engine.storage.getEnergy(i);
-                avgAggressiveness += engine.storage.getGenome(i)[1];
-            }
-            let avgEnergy = engine.storage.activeCells > 0 ? totalEnergy / engine.storage.activeCells : 0;
-            avgAggressiveness /= engine.storage.activeCells || 1;
-
-            if (isNaN(avgEnergy)) avgEnergy = 0;
-
-            console.log(`Frame ${frame.toString().padStart(3)} | Pop: ${engine.storage.activeCells.toString().padStart(5)} | Avg Energy: ${avgEnergy.toFixed(1)} | Avg Agg: ${avgAggressiveness.toFixed(3)}`);
+            console.log(`Frame ${frame.toString().padStart(3)} | Pop: ${engine.storage.activeCount.toString().padStart(5)}`);
         }
     }
 
     console.log(`---------------------------------`);
-    console.log(`Final stats: ${engine.storage.activeCells} cells alive.`);
+    console.log(`Final stats: ${engine.storage.activeCount} cells alive.`);
 }
 
 runEvolutionDemo().catch(console.error);

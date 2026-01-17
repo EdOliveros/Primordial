@@ -117,30 +117,29 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         isDragging.current = false;
     };
 
-};
 
-return (
-    <canvas
-        ref={canvasRef}
-        id="simCanvas"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onContextMenu={(e) => e.preventDefault()}
-        style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            display: 'block',
-            cursor: 'crosshair',
-            zIndex: 0,
-            background: '#000'
-        }}
-    />
-);
+    return (
+        <canvas
+            ref={canvasRef}
+            id="simCanvas"
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onContextMenu={(e) => e.preventDefault()}
+            style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                display: 'block',
+                cursor: 'crosshair',
+                zIndex: 0,
+                background: '#000'
+            }}
+        />
+    );
 };
 
 export default GameCanvas;

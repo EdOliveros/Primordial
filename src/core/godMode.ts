@@ -17,7 +17,9 @@ export class GodMode {
         console.log("GOD MODE: Triggering Extinction Event (90%)...");
         let removed = 0;
         // Iterate backwards because remove swaps
-        for (let i = this.engine.storage.activeCells - 1; i >= 0; i--) {
+        for (let i = this.engine.storage.maxCells - 1; i >= 0; i--) {
+            if (this.engine.storage.isActive[i] === 0) continue;
+
             if (Math.random() < 0.9) {
                 this.engine.storage.remove(i);
                 removed++;
@@ -43,7 +45,7 @@ export class GodMode {
             const idx = this.engine.storage.spawn(x, y, viralDNA);
             if (idx !== -1) {
                 // Metadata flag for virus
-                this.engine.storage.stats[idx * 4 + 3] = 999;
+                this.engine.storage.visualColors[idx * 4 + 3] = 999;
             }
         }
     }
