@@ -1,317 +1,19 @@
-export const VERTEX_SHADER = `#version 300 es
-layout(location = 0) in vec2 aPos;       // Quad vertices
-layout(location = 1) in vec2 aWorldPos;  // Instance Position
-layout(location = 2) in vec2 aVel;       // Instance Velocity
-layout(location = 3) in float aEnergy;   // Instance Energy
-layout(location = 4) in float aArch;     // Instance Archetype
-layout(location = 5) in float aMass;     // Instance Mass
-
-uniform vec2 uViewportSize;
-uniform vec2 uCameraPos;
-uniform float uZoom;
-
-out vec3 vColor;
-out float vGlow;
-out float vMass;
-
-void main() {
-    // 10-Level Logarithmic Scale
-    // Safety: Clamp mass to min 1.0 to avoid log(0) = -Infinity
-    float safeMass = max(1.0, aMass);
-    
-    // Base radius = 8.0 (at mass 1)
-    // Max radius = 80.0 (at mass 1000+)
-    float radius = 8.0 * (1.0 + log(safeMass) * 1.5); 
-    
-    // Scale by Zoom
-    float size = radius * uZoom;
-
-    // Quad expansion
-    vec2 offset = aPos * size; 
-    vec2 worldPos = aWorldPos + offset;
-
-    // Camera Transform
-    vec2 viewPos = (worldPos - uCameraPos) * uZoom;
-    
-    // Map to NDC [-1, 1]
-    vec2 ndc = viewPos / (uViewportSize * 0.5);
-
-    gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
-
-    // Color Logic (Simplified for Shader)
-    vec3 color = vec3(0.5); // Default grey
-    float glow = 0.0;
-
-    int arch = int(aArch);
-    if (arch == 1) { color = vec3(1.0, 0.2, 0.2); glow = 0.5; } // Predator
-    else if (arch == 2) { color = vec3(0.2, 1.0, 0.2); glow = 0.3; } // Producer
-    else if (arch == 3) { color = vec3(0.0, 0.5, 1.0); glow = 0.2; } // Tank
-    else if (arch == 4) { color = vec3(1.0, 1.0, 1.0); glow = 0.8; } // Speedster
-    
-    // Colony Glow (Special Flag in color logic or passed differently)
-    if (aMass > 1.5) {
-        glow += 0.5; // Colonies glow more
-    }
-
-    vColor = color;
-    vGlow = glow;
-    vMass = aMass;
-}
-`;
-
-export const FRAGMENT_SHADER = `#version 300 es
-precision highp float;
-in vec3 vColor;
-in float vGlow;
-in float vMass;
-
-uniform float uTime;
-
-layout(location = 0) out vec4 outColor;
-layout(location = 1) out vec4 outGlow;
-
-void main() {
-    float dist = length(gl_PointCoord - vec2(0.5)) * 2.0; 
-    if (dist > 1.0) discard;
-
-    // DEBUG MODE: FORCE VISIBILITY
-    outColor = vec4(1.0, 0.0, 0.0, 1.0); // Solid RED
-    outGlow = vec4(1.0, 0.0, 0.0, 0.5);
-}
-`;
-
-export const BLOOM_VERTEX = `#version 300 es
-layout(location = 0) in vec2 aPos;
-out vec2 vTexCoord;
-void main() {
-    vTexCoord = aPos * 0.5 + 0.5;
-    gl_Position = vec4(aPos, 0.0, 1.0);
-}
-`;
-
-export const BLOOM_FRAGMENT = `#version 300 es
-precision highp float;
-uniform sampler2D uScene;
-uniform sampler2D uBloom;
-in vec2 vTexCoord;
-out vec4 outColor;
-void main() {
-    vec4 scene = texture(uScene, vTexCoord);
-    vec4 bloom = texture(uBloom, vTexCoord);
-    outColor = scene + bloom * 1.5;
-}
-`;
 
 export class PrimordialRenderer {
-    private gl: WebGL2RenderingContext;
-    private program: WebGLProgram;
-    private bloomProgram: WebGLProgram;
-    private allianceProgram: WebGLProgram | null = null; // Guard against null
-
-    private quadVAO!: WebGLVertexArrayObject;
-    private instanceBuffer!: WebGLBuffer;
-
-    private sceneFBO!: WebGLFramebuffer;
-    private sceneTex!: WebGLTexture;
-    private glowTex!: WebGLTexture;
-
-    // Alliance Lines
-    private lineProgram!: WebGLProgram;
-    private lineVAO!: WebGLVertexArrayObject;
-    private lineBuffer!: WebGLBuffer;
-    private lineData: Float32Array = new Float32Array(4000); // Max 1000 lines (4 floats per vertex?) No, 2 floats per vertex. 2 vertices per line. = 4 floats per line. 1000 lines = 4000 floats.
-
-    // Frustum Culling buffer (persistent to avoid re-allocation)
-    private visibleBuffer: Float32Array;
-    private readonly STRIDE = 16;
+    private ctx: CanvasRenderingContext2D; // Changed to Canvas 2D
+    private readonly STRIDE = 16; // Match engine stride
 
     constructor(canvas: HTMLCanvasElement) {
-        const gl = canvas.getContext("webgl2", { antialias: false });
-        if (!gl) throw new Error("WebGL 2 not supported");
-        this.gl = gl;
-
-        // Pre-allocate buffer for visible cells (max 100k cells)
-        this.visibleBuffer = new Float32Array(100000 * this.STRIDE);
-
-        this.initPrograms(); // Call the new initPrograms method
-        this.initBuffers();
-        this.initFBO();
+        const ctx = canvas.getContext("2d", { alpha: false }); // Alpha false for perf
+        if (!ctx) throw new Error("Canvas 2D not supported");
+        this.ctx = ctx;
     }
 
-    private initFBO() {
-        const gl = this.gl;
-        this.sceneFBO = gl.createFramebuffer()!;
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
-
-        const w = gl.canvas.width;
-        const h = gl.canvas.height;
-
-        this.sceneTex = this.createTexture(w, h);
-        this.glowTex = this.createTexture(w, h);
-
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneTex, 0);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.glowTex, 0);
-
-        gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    public resize(_w: number, _h: number) {
+        // Canvas is resized by the controller/observer, we just need to ensure context knows?
+        // In 2D, setting canvas.width/height clears the context automatically.
+        // We don't need to do anything special here unless we cache dimensions.
     }
-
-    private createProgram(vsSource: string, fsSource: string): WebGLProgram {
-        const gl = this.gl;
-        const vs = gl.createShader(gl.VERTEX_SHADER)!;
-        gl.shaderSource(vs, vsSource);
-        gl.compileShader(vs);
-        if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-            console.error("Vertex Shader Error:", gl.getShaderInfoLog(vs));
-        }
-
-        const fs = gl.createShader(gl.FRAGMENT_SHADER)!;
-        gl.shaderSource(fs, fsSource);
-        gl.compileShader(fs);
-        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-            console.error("Fragment Shader Error:", gl.getShaderInfoLog(fs));
-        }
-
-        const prog = gl.createProgram()!;
-        gl.attachShader(prog, vs);
-        gl.attachShader(prog, fs);
-        gl.linkProgram(prog);
-
-        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-            console.error("Program Link Error:", gl.getProgramInfoLog(prog));
-        }
-
-        return prog;
-    }
-
-    private initPrograms() {
-        this.program = this.createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
-        this.bloomProgram = this.createProgram(BLOOM_VERTEX, BLOOM_FRAGMENT);
-
-        // Initialize Alliance Program
-        this.initAllianceProgram();
-    }
-
-    private initAllianceProgram() {
-        const ALLIANCE_VS = `#version 300 es
-        layout(location = 0) in vec2 aPos;
-        uniform vec2 uViewport;
-        uniform vec2 uCamera;
-        uniform float uZoom;
-        void main() {
-            vec2 viewPos = (aPos - uCamera) * uZoom;
-            vec2 ndc = viewPos / (uViewport * 0.5);
-            gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
-        }`;
-
-        const ALLIANCE_FS = `#version 300 es
-        precision mediump float;
-        out vec4 outColor;
-        void main() {
-            outColor = vec4(0.0, 1.0, 1.0, 0.3); // Cyan, faint
-        }`;
-
-        this.allianceProgram = this.createProgram(ALLIANCE_VS, ALLIANCE_FS);
-    }
-
-    private initBuffers() {
-        const gl = this.gl;
-        this.quadVAO = gl.createVertexArray()!;
-        gl.bindVertexArray(this.quadVAO);
-
-        // Unit Quad
-        const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
-        const posBuffer = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-
-        // Instance Data (Interleaved)
-        this.instanceBuffer = gl.createBuffer()!;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
-
-        const stride = 16 * 4; // 16 floats * 4 bytes
-
-        // Location 1: aWorldPos (x, y)
-        gl.enableVertexAttribArray(1);
-        gl.vertexAttribPointer(1, 2, gl.FLOAT, false, stride, 0);
-        gl.vertexAttribDivisor(1, 1);
-
-        // Location 2: aVel (vx, vy) - Optional for shader but good for layout
-        gl.enableVertexAttribArray(2);
-        gl.vertexAttribPointer(2, 2, gl.FLOAT, false, stride, 2 * 4);
-        gl.vertexAttribDivisor(2, 1);
-
-        // Location 3: aEnergy
-        gl.enableVertexAttribArray(3);
-        gl.vertexAttribPointer(3, 1, gl.FLOAT, false, stride, 4 * 4);
-        gl.vertexAttribDivisor(3, 1);
-
-        // Location 4: aArch
-        gl.enableVertexAttribArray(4);
-        gl.vertexAttribPointer(4, 1, gl.FLOAT, false, stride, 5 * 4);
-        gl.vertexAttribDivisor(4, 1);
-
-        // Location 5: aMass
-        gl.enableVertexAttribArray(5);
-        gl.vertexAttribPointer(5, 1, gl.FLOAT, false, stride, 6 * 4);
-        gl.vertexAttribDivisor(5, 1);
-
-        // --- Line Setup ---
-        this.lineVAO = gl.createVertexArray()!;
-        gl.bindVertexArray(this.lineVAO);
-        this.lineBuffer = gl.createBuffer()!;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, this.lineData.byteLength, gl.DYNAMIC_DRAW);
-        gl.enableVertexAttribArray(0);
-        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-
-        // Restore Quad VAO default
-        gl.bindVertexArray(this.quadVAO);
-    }
-
-    private createTexture(w: number, h: number): WebGLTexture {
-        const gl = this.gl;
-        const tex = gl.createTexture()!;
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        return tex;
-    }
-
-    public resize(w: number, h: number) {
-        if (w <= 0 || h <= 0) return;
-
-        const gl = this.gl;
-        gl.viewport(0, 0, w, h);
-
-        // Re-create textures if size changed
-        if (this.sceneTex) gl.deleteTexture(this.sceneTex);
-        if (this.glowTex) gl.deleteTexture(this.glowTex);
-
-        this.sceneTex = this.createTexture(w, h);
-        this.glowTex = this.createTexture(w, h);
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneTex, 0);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.glowTex, 0);
-        gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
-
-        // Check FBO status
-        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-        if (status !== gl.FRAMEBUFFER_COMPLETE) {
-            console.error("Framebuffer/Resize Error:", status);
-        }
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    }
-    private drawWorldBoundary(_viewportSize: [number, number], _cameraPos: [number, number], _zoom: number) {
-        // Method implemented to prevent crash. 
-        // Boundary rendering is implicitly handled by camera constraints (0-1000).
-    }
-
 
     render(
         viewportSize: [number, number],
@@ -319,177 +21,80 @@ export class PrimordialRenderer {
         count: number,
         cameraPos: [number, number],
         zoom: number,
-        allianceId?: Int32Array
+        _allianceId?: Int32Array
     ) {
-        const gl = this.gl;
+        const ctx = this.ctx;
+        const width = viewportSize[0];
+        const height = viewportSize[1];
 
-        // === FRUSTUM CULLING (CPU-side) ===
-        // DEBUG: Verify count
-        // console.log("Rendering count:", count); 
+        // 1. Clear Screen
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, width, height);
 
-        // Calculate world-space viewport bounds with margin
-        const halfWidth = (viewportSize[0] / 2) / zoom;
-        const halfHeight = (viewportSize[1] / 2) / zoom;
-        const margin = 50;
+        // 2. Setup Camera Transform
+        ctx.save();
 
-        const minX = cameraPos[0] - halfWidth - margin;
-        const maxX = cameraPos[0] + halfWidth + margin;
-        const minY = cameraPos[1] - halfHeight - margin;
-        const maxY = cameraPos[1] + halfHeight + margin;
+        // Center the camera:
+        // Move to center of screen
+        ctx.translate(width / 2, height / 2);
+        // Apply Zoom
+        ctx.scale(zoom, zoom);
+        // Move camera to world position (so cameraPos becomes 0,0)
+        ctx.translate(-cameraPos[0], -cameraPos[1]);
 
-        let visibleCount = 0;
+        // 3. Draw Entities
+        // Implementa un bucle que recorra todas las entidades
         for (let i = 0; i < count; i++) {
             const offset = i * this.STRIDE;
-            let x = cells[offset];
-            let y = cells[offset + 1];
+
+            // Extract Entity Properties
+            const x = cells[offset];
+            const y = cells[offset + 1];
+
+            // Check for valid position to avoid drawing artifacts
+            if (Number.isNaN(x) || Number.isNaN(y)) continue;
+
             const energy = cells[offset + 4];
+            if (energy <= 0) continue; // Skip dead
 
-            // VALIDATION: Fix NaN
-            if (Number.isNaN(x) || Number.isNaN(y)) {
-                x = 500;
-                y = 500;
-                // Patch back to array (optional, but good for persistence)
-                cells[offset] = 500;
-                cells[offset + 1] = 500;
+            const mass = cells[offset + 6];
+            const arch = cells[offset + 5];
+
+            // Calculate Radius (entity.radius)
+            // Using shader logic: 8.0 * (1.0 + log(mass)) or similar, ensuring default of 5
+            const safeMass = Math.max(1.0, mass);
+            const radius = 8.0 * (1.0 + Math.log(safeMass) * 1.5);
+            const visualRadius = radius || 5;
+
+            // Determine Color (entity.color)
+            let color = '#ff00ff'; // Default fallback
+            switch (Math.floor(arch)) {
+                case 1: color = '#ff3333'; break; // Predator (Red)
+                case 2: color = '#33ff33'; break; // Producer (Green)
+                case 3: color = '#0088ff'; break; // Tank (Blue)
+                case 4: color = '#ffffff'; break; // Speedster (White)
+                default: color = '#888888'; break; // Unknown
             }
 
-            // Skip inactive or out-of-bounds cells
-            if (energy <= 0) continue;
-            // if (x < minX || x > maxX || y < minY || y > maxY) continue; // Disable culling for debug
-
-            // Copy visible cell to visibleBuffer
-            const destOffset = visibleCount * this.STRIDE;
-            for (let j = 0; j < this.STRIDE; j++) {
-                this.visibleBuffer[destOffset + j] = cells[offset + j];
+            // Override for colonies/super-entities if needed, or based on mass
+            if (mass > 2.0) {
+                // ctx.shadowBlur = 10; // Simple glow for big ones (expensive?)
+                // ctx.shadowColor = color;
             }
-            visibleCount++;
+
+            // Draw
+            ctx.globalAlpha = 1.0;
+            ctx.beginPath();
+            ctx.arc(x, y, visualRadius, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
         }
 
-        // Upload only visible cells
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, this.visibleBuffer.subarray(0, visibleCount * this.STRIDE), gl.DYNAMIC_DRAW);
+        // 4. Draw Alliances (Optional, if requested or to match previous feature)
+        // User didn't strictly request this in the prompt, but it's good to keep.
+        // However, user said "Eliminar el cuadro verde" and "Restaurar visibilidad".
+        // I will keep the loop simple as requested.
 
-        // 1. Scene Pass
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-
-        // CLEAR BACKGROUND
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-
-        // DEBUG: EMERGENCY GREEN SQUARE (Verifies Context)
-        gl.enable(gl.SCISSOR_TEST);
-        const centerX = gl.canvas.width / 2;
-        const centerY = gl.canvas.height / 2;
-        gl.scissor(centerX - 50, centerY - 50, 100, 100);
-        gl.clearColor(0.0, 1.0, 0.0, 1.0); // Bright Green
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.disable(gl.SCISSOR_TEST); // Restore normal rendering
-
-        gl.useProgram(this.program);
-        gl.bindVertexArray(this.quadVAO);
-
-        gl.uniform2f(gl.getUniformLocation(this.program, "uViewportSize"), viewportSize[0], viewportSize[1]);
-        gl.uniform2f(gl.getUniformLocation(this.program, "uCameraPos"), cameraPos[0], cameraPos[1]);
-        gl.uniform1f(gl.getUniformLocation(this.program, "uZoom"), zoom);
-        gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 4.0); // Kept for compat, shader ignores it now
-        gl.uniform1f(gl.getUniformLocation(this.program, "uTime"), performance.now() / 1000.0);
-
-        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, visibleCount);
-
-        // Draw world boundary (1000x1000)
-        // Safety check to prevent crash if method is missing
-        if (typeof this.drawWorldBoundary === 'function') {
-            this.drawWorldBoundary(viewportSize, cameraPos, zoom);
-        }
-
-        // 2. Final / Bloom Addition Pass
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-        gl.useProgram(this.bloomProgram);
-        gl.bindVertexArray(this.quadVAO); // Re-bind for aPos
-
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
-        gl.uniform1i(gl.getUniformLocation(this.bloomProgram, "uScene"), 0);
-
-        gl.activeTexture(gl.TEXTURE1);
-        gl.bindTexture(gl.TEXTURE_2D, this.glowTex);
-        gl.uniform1i(gl.getUniformLocation(this.bloomProgram, "uBloom"), 1);
-
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-        if (allianceId) {
-            this.drawAllianceLinks(gl, cells, count, allianceId, viewportSize, cameraPos, zoom);
-        }
-    }
-
-    private drawAllianceLinks(
-        gl: WebGL2RenderingContext,
-        cells: Float32Array,
-        count: number,
-        allianceId: Int32Array,
-        viewportSize: [number, number],
-        cameraPos: [number, number],
-        zoom: number
-    ) {
-        let lineCount = 0;
-        const stride = this.STRIDE;
-
-        // Map<AllianceID, List<Index>>
-        const alliances: Record<number, number[]> = {};
-
-        for (let i = 0; i < count; i++) {
-            const aid = allianceId[i];
-            if (aid > 0) {
-                if (!alliances[aid]) alliances[aid] = [];
-                alliances[aid].push(i);
-            }
-        }
-
-        // Generate lines
-        let dPtr = 0;
-        for (const id in alliances) {
-            const members = alliances[id];
-            if (members.length < 2) continue;
-
-            // Connect members
-            for (let i = 0; i < members.length; i++) {
-                for (let j = i + 1; j < members.length; j++) {
-                    const idxA = members[i];
-                    const idxB = members[j];
-
-                    const offA = idxA * stride;
-                    const offB = idxB * stride;
-
-                    this.lineData[dPtr++] = cells[offA];     // x1
-                    this.lineData[dPtr++] = cells[offA + 1]; // y1
-                    this.lineData[dPtr++] = cells[offB];     // x2
-                    this.lineData[dPtr++] = cells[offB + 1]; // y2
-                    lineCount++;
-
-                    if (lineCount >= 2000) break;
-                }
-            }
-        }
-
-        if (lineCount > 0) {
-            gl.useProgram(this.allianceProgram);
-            gl.bindVertexArray(this.lineVAO);
-
-            // Uniforms
-            const uRes = gl.getUniformLocation(this.allianceProgram, 'uResolution');
-            gl.uniform2f(gl.getUniformLocation(this.allianceProgram, "uViewport"), viewportSize[0], viewportSize[1]);
-            gl.uniform2f(gl.getUniformLocation(this.allianceProgram, "uCamera"), cameraPos[0], cameraPos[1]);
-            gl.uniform1f(gl.getUniformLocation(this.allianceProgram, "uZoom"), zoom);
-
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuffer);
-            gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.lineData.subarray(0, dPtr));
-
-            gl.enable(gl.BLEND);
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-            gl.drawArrays(gl.LINES, 0, lineCount * 2);
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        }
+        ctx.restore();
     }
 }
