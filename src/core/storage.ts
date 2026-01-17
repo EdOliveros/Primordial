@@ -121,6 +121,13 @@ export class CellStorage {
         this.isActive[idx] = 0;
         this.freeIndices.push(idx);
         this.activeCount--;
+
+        // Aggressive Cleanup: Zero out buffer to prevent ghost rendering
+        const offset = idx * this.stride;
+        this.cells.fill(0, offset, offset + this.stride);
+        this.nextCells.fill(0, offset, offset + this.stride);
+        this.visualColors.fill(0, idx * 4, (idx * 4) + 4);
+        this.allianceId[idx] = -1;
     }
 
     getEnergy(idx: number): number { return this.cells[idx * this.stride + 4]; }

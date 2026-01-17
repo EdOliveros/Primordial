@@ -21,7 +21,8 @@ export class PrimordialRenderer {
         count: number,
         cameraPos: [number, number],
         zoom: number,
-        _allianceId?: Int32Array
+        _allianceId: Int32Array | undefined,
+        isActive: Uint8Array // New parameter
     ) {
         const ctx = this.ctx;
         const width = viewportSize[0];
@@ -53,6 +54,9 @@ export class PrimordialRenderer {
 
         // --- 3. DRAW ENTITIES ---
         for (let i = 0; i < count; i++) {
+            // STRICT ACTIVE CHECK
+            if (isActive[i] === 0) continue;
+
             const offset = i * this.STRIDE;
 
             const x = cells[offset];

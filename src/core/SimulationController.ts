@@ -283,7 +283,8 @@ export class SimulationController {
                     this.engine.storage.maxCells,
                     this.cameraPos,
                     this.zoom,
-                    this.engine.storage.allianceId
+                    this.engine.storage.allianceId,
+                    this.engine.storage.isActive // Pass isActive for strict filtering
                 );
             }
         } catch (e) {
