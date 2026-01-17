@@ -64,62 +64,19 @@ precision highp float;
 in vec3 vColor;
 in float vGlow;
 in float vMass;
-in vec2 viewPosDebug; // Not used but kept for interface matching if needed
 
 uniform float uTime;
 
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outGlow;
 
-float hash(float n) { return fract(sin(n) * 43758.5453123); }
-
 void main() {
-    float dist = length(gl_PointCoord - vec2(0.5)) * 2.0; // 0.0 to 1.0 (Unit Circle)
+    float dist = length(gl_PointCoord - vec2(0.5)) * 2.0; 
     if (dist > 1.0) discard;
 
-    float alpha = 1.0;
-    vec3 finalColor = vColor;
-    float finalGlow = vGlow;
-
-    // --- TIER SYSTEM ---
-    
-    // TIER 3: APEX ENTITY (Mass > 500)
-    if (vMass > 500.0) {
-        // Pulsing Core
-        float pulse = 0.8 + 0.2 * sin(uTime * 3.0);
-        float core = smoothstep(0.5 * pulse, 0.0, dist);
-        
-        // Orbiting Energy
-        float orbit = 0.0;
-        float angle = atan(gl_PointCoord.y - 0.5, gl_PointCoord.x - 0.5);
-        float spirals = sin(angle * 5.0 + uTime * 2.0 - dist * 10.0);
-        orbit = smoothstep(0.1, 0.0, abs(dist - 0.7 + spirals * 0.1));
-
-        alpha = core + orbit;
-        finalColor = mix(vColor, vec3(1.0, 1.0, 1.0), orbit); // White spirals
-        finalGlow = 1.0; // Max Glow
-    }
-    // TIER 2: FORTRESS (Mass 50 - 500)
-    else if (vMass > 50.0) {
-        // Solid Core + Thick Membrane
-        float core = smoothstep(0.6, 0.55, dist);
-        float border = smoothstep(0.8, 0.75, dist) - smoothstep(0.65, 0.6, dist);
-        
-        alpha = core + border;
-        finalColor = mix(vColor, vec3(1.0), border * 0.5); // Lighter border
-        finalGlow = 0.8;
-    }
-    // TIER 1: COLONY / CELL (Mass < 50)
-    else {
-        // Soft Circle
-        alpha = smoothstep(1.0, 0.8, dist);
-        finalGlow = 0.5;
-    }
-
-    outColor = vec4(finalColor, alpha);
-    outGlow = vec4(finalColor * finalGlow, alpha);
-
-    if (alpha < 0.01) discard;
+    // DEBUG MODE: FORCE VISIBILITY
+    outColor = vec4(1.0, 0.0, 0.0, 1.0); // Solid RED
+    outGlow = vec4(1.0, 0.0, 0.0, 0.5);
 }
 `;
 
@@ -367,10 +324,13 @@ export class PrimordialRenderer {
         const gl = this.gl;
 
         // === FRUSTUM CULLING (CPU-side) ===
+        // DEBUG: Verify count
+        // console.log("Rendering count:", count); 
+
         // Calculate world-space viewport bounds with margin
         const halfWidth = (viewportSize[0] / 2) / zoom;
         const halfHeight = (viewportSize[1] / 2) / zoom;
-        const margin = 50; // Extra margin to prevent popping at edges
+        const margin = 50;
 
         const minX = cameraPos[0] - halfWidth - margin;
         const maxX = cameraPos[0] + halfWidth + margin;
@@ -380,13 +340,22 @@ export class PrimordialRenderer {
         let visibleCount = 0;
         for (let i = 0; i < count; i++) {
             const offset = i * this.STRIDE;
-            const x = cells[offset];
-            const y = cells[offset + 1];
+            let x = cells[offset];
+            let y = cells[offset + 1];
             const energy = cells[offset + 4];
+
+            // VALIDATION: Fix NaN
+            if (Number.isNaN(x) || Number.isNaN(y)) {
+                x = 500;
+                y = 500;
+                // Patch back to array (optional, but good for persistence)
+                cells[offset] = 500;
+                cells[offset + 1] = 500;
+            }
 
             // Skip inactive or out-of-bounds cells
             if (energy <= 0) continue;
-            if (x < minX || x > maxX || y < minY || y > maxY) continue;
+            // if (x < minX || x > maxX || y < minY || y > maxY) continue; // Disable culling for debug
 
             // Copy visible cell to visibleBuffer
             const destOffset = visibleCount * this.STRIDE;
@@ -412,7 +381,7 @@ export class PrimordialRenderer {
         gl.uniform2f(gl.getUniformLocation(this.program, "uViewportSize"), viewportSize[0], viewportSize[1]);
         gl.uniform2f(gl.getUniformLocation(this.program, "uCameraPos"), cameraPos[0], cameraPos[1]);
         gl.uniform1f(gl.getUniformLocation(this.program, "uZoom"), zoom);
-        gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 4.0);
+        gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 4.0); // Kept for compat, shader ignores it now
         gl.uniform1f(gl.getUniformLocation(this.program, "uTime"), performance.now() / 1000.0);
 
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, visibleCount);
