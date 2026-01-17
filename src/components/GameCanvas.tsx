@@ -20,9 +20,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const isDragging = useRef(false);
     const lastMousePos = useRef({ x: 0, y: 0 });
     const isSpaceDown = useRef(false);
+    const isInitialized = useRef(false); // Prevent double initialization in React Strict Mode
 
     useEffect(() => {
+        // Guard against React Strict Mode double-invocation
+        if (isInitialized.current) return;
+
         if (canvasRef.current) {
+            isInitialized.current = true;
+
             const controller = new SimulationController(canvasRef.current);
             controller.onTelemetry = onTelemetry;
             controller.onFPS = onFPS;
@@ -75,6 +81,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 resizeObserver.disconnect();
                 window.removeEventListener('keydown', handleKeyDown);
                 window.removeEventListener('keyup', handleKeyUp);
+                isInitialized.current = false; // Reset flag on cleanup
             };
         }
     }, []);
