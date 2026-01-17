@@ -92,7 +92,7 @@ export class PrimordialRenderer {
             // Level 1: Mass 10, Level 10: Mass 500
             // Formula: Level = Clamped(1, 10, Ceil(Mass / 50))
             const level = Math.max(1, Math.min(10, Math.ceil(mass / 50)));
-            const visualRadius = level * 5;
+            const visualRadius = Math.max(3.0, level * 5); // Enforce Min Radius 3
 
             // Color Logic (Same as before)
             let color = '#ff00ff';

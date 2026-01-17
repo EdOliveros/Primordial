@@ -24,6 +24,7 @@ export class Engine {
     public foodAbundance: number = 1.0;
     public totalBirths: number = 0;
     public totalDeaths: number = 0;
+    public totalTime: number = 0; // New: Track total simulation time
 
     constructor(worldSize: number, maxCells: number) {
         this.worldSize = worldSize;
@@ -56,6 +57,7 @@ export class Engine {
     update(dt: number) {
         if (!this.storage || !this.storage.cells) return;
         this.frameCount++;
+        this.totalTime += dt;
 
         // 1. Update Spatial Grid
         this.spatialGrid.update(this.storage.cells, this.storage.isActive, this.storage.stride);
@@ -286,9 +288,6 @@ export class Engine {
                 maxEnergy = energy;
                 bestGenome = this.storage.getGenome(idx);
             }
-
-            // Despawn individual
-            this.storage.remove(idx);
         });
 
         if (!bestGenome) return;
@@ -306,6 +305,9 @@ export class Engine {
         // Spawn Super-Entity (Colony)
         const newIdx = this.storage.spawn(avgX, avgY, bestGenome);
         if (newIdx !== -1) {
+            // ATOMIC REMOVAL: Only remove if spawn succeeded
+            validIndices.forEach(idx => this.storage.remove(idx));
+
             // Set properties
             const offset = newIdx * this.storage.stride;
             this.storage.cells[offset + 6] = totalMass; // Set total mass
@@ -592,7 +594,13 @@ export class Engine {
         }
 
         if (energy <= 0) {
-            this.storage.remove(idx);
+            // SPAWN PROTECTION: 5 Seconds Immunity
+            if (this.totalTime > 5.0) {
+                this.storage.remove(idx);
+            } else {
+                // Keep alive at minimum energy during protection
+                this.storage.setEnergy(idx, 10.0);
+            }
         } else {
             this.storage.setEnergy(idx, energy);
         }
