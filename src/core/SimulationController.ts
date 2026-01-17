@@ -233,4 +233,7 @@ export class SimulationController {
 
     public resize(width: number, height: number) {
         this.canvas.width = width;
+        this.canvas.height = height;
+        this.renderer.resize(width, height);
     }
+}
