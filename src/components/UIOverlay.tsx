@@ -20,7 +20,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
     onFollow,
     onDismiss
 }) => {
-    const GENE_LABELS = ["SPD", "AGG", "PHO", "SIZ", "DEF", "VIS", "MUT", "LIF"];
+    const GENE_CODES = ["SPD", "AGG", "PHO", "SIZ", "DEF", "VIS", "MUT", "LIF"];
+    const GENE_NAMES = ["Velocidad", "Agresión", "Fotosíntesis", "Tamaño", "Defensa", "Visión", "Mutación", "Vida"];
     const [isOpen, setIsOpen] = React.useState(false); // Default hidden
 
     return (
@@ -56,7 +57,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                         const maxVal = Math.max(...telemetry.histogram) || 1;
                         return (
                             <div key={i} className="histo-bar-container">
-                                <div className="histo-label">{GENE_LABELS[i]}</div>
+                                <div className="histo-label">{GENE_CODES[i]}</div>
                                 <div className="histo-track">
                                     <div className="histo-fill" style={{ width: `${(count / maxVal) * 100}%` }}></div>
                                 </div>
@@ -70,23 +71,34 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                 <div id="inspector" style={{ display: 'block' }}>
                     <div className="inspector-header">
                         <div>
-                            <div className="label" style={{ margin: 0 }}>Specimen</div>
-                            <div className="value" style={{ fontSize: '0.9rem' }}>CELL #{inspectedCell.idx}</div>
+                            <div className="label" style={{ margin: 0 }}>Especimen</div>
+                            <div className="value" style={{ fontSize: '0.9rem' }}>Célula #{inspectedCell.idx}</div>
                         </div>
                         <div className="specimen-tag">Gen {inspectedCell.generation}</div>
                     </div>
 
                     <div className="metric-group" style={{ marginBottom: '20px' }}>
-                        <div className="metric"><span className="label">Energy</span><span className="value" style={{ color: 'var(--neon-green)' }}>{Math.floor(inspectedCell.energy)}</span></div>
-                        <div className="metric"><span className="label">Health</span><span className="value" style={{ color: 'var(--neon-red)' }}>100%</span></div>
+                        <div className="metric"><span className="label">Energía</span><span className="value" style={{ color: 'var(--neon-green)' }}>{Math.floor(inspectedCell.energy)}</span></div>
+                        <div className="metric"><span className="label">Salud</span><span className="value" style={{ color: 'var(--neon-red)' }}>100%</span></div>
                     </div>
 
-                    <div className="label" style={{ marginBottom: '10px' }}>Genetic Sequence</div>
-                    <div className="dna-grid">
+                    <div className="label" style={{ marginBottom: '10px' }}>Secuencia Genética</div>
+                    <div className="dna-list">
                         {inspectedCell.genome.map((val: number, i: number) => (
-                            <div key={i} className="gene-slot">
-                                <div className="gene-val">{(val * 100).toFixed(0)}</div>
-                                <div className="gene-name">{GENE_LABELS[i]}</div>
+                            <div key={i} className="gene-row">
+                                <div className="gene-info">
+                                    <span className="gene-name">{GENE_NAMES[i]}</span>
+                                    <span className="gene-val">{(val * 100).toFixed(0)}</span>
+                                </div>
+                                <div className="gene-bar-track">
+                                    <div
+                                        className="gene-bar-fill"
+                                        style={{
+                                            width: `${Math.min(100, val * 100)}%`,
+                                            background: i === 1 ? 'var(--neon-red)' : i === 2 ? 'var(--neon-green)' : 'var(--neon-blue)'
+                                        }}
+                                    ></div>
+                                </div>
                             </div>
                         ))}
                     </div>
