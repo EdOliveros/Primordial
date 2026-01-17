@@ -81,14 +81,13 @@ export class PrimordialRenderer {
         }
 
         // 3b. Sort by Mass (Descending: Largest First -> Bottom Layer)
-        // Accessing TypedArray inside sort is relatively fast for <10k entities
+        // Depth Sort: Draw Smallest First, Largest Last (On Top)
         indices.sort((a, b) => {
             const massA = cells[a * this.STRIDE + 6];
             const massB = cells[b * this.STRIDE + 6];
-            return massB - massA;
+            return massA - massB; // Ascending
         });
 
-        // 3c. Draw Loop
         ctx.globalAlpha = 1.0; // Enforce Opaqueness
 
         for (const i of indices) {
@@ -133,6 +132,11 @@ export class PrimordialRenderer {
             ctx.arc(x, y, visualRadius, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
+
+            // RESCUE: FORCE VISIBILITY (White Stroke)
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
 
             // --- LEVEL 5+ AURA ---
             if (level >= 5) {
