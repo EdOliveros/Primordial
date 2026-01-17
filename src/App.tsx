@@ -57,6 +57,7 @@ const App: React.FC = () => {
     };
 
     const handleStart = (settings: { count: number, mutation: number, food: number, friction: number }) => {
+        console.log("Botón Start presionado. Config:", settings);
         if (controllerRef.current) {
             controllerRef.current.onEvent = handleEvent; // Hook event listener
             controllerRef.current.start(settings);
