@@ -389,12 +389,16 @@ export class Engine {
         // Validation: Force Minimum Mass
         totalMass = Math.max(totalMass, 10.0);
 
+        // PRE-CHECK: Can we spawn?
+        if (this.storage.freeIndices.length === 0) return; // Cap reached
+
+        // ATOMIC SWAP: Remove Old -> Spawn New
+        // Prompt Requirement: "Eliminen las originales ANTES de crear la nueva"
+        validIndices.forEach(idx => this.storage.remove(idx));
+
         // Spawn Super-Entity (Colony)
         const newIdx = this.storage.spawn(avgX, avgY, bestGenome);
         if (newIdx !== -1) {
-            // ATOMIC REMOVAL: Only remove if spawn succeeded
-            validIndices.forEach(idx => this.storage.remove(idx));
-
             // Set properties
             const offset = newIdx * this.storage.stride;
             this.storage.cells[offset + 6] = totalMass; // Set total mass
@@ -411,6 +415,10 @@ export class Engine {
 
             // Set Cooldown on new Colony (Immunity for 3 seconds)
             this.storage.cooldowns[newIdx] = 3.0;
+        } else {
+            // CRITICAL FAILURE: Spawn failed after removal (Should not happen due to Pre-Check)
+            // But if it does (race condition?), we lost mass.
+            // With single-threaded JS and Pre-Check, this is safe.
         }
     }
 
@@ -691,10 +699,30 @@ export class Engine {
             this.wander(idx, speedMultiplier * sizeSpeedPenalty * phaseSpeedMult); // Apply Phase Penalty
         }
 
+
+        // ORPHAN CLEANUP (Safety Check every 100 frames)
+        if (this.frameCount % 100 === 0) {
+            for (let i = 0; i < this.storage.maxCells; i++) {
+                if (this.storage.isActive[i]) {
+                    const offset = i * this.storage.stride;
+                    const m = this.storage.cells[offset + 6];
+                    const x = this.storage.getX(i);
+                    const y = this.storage.getY(i);
+                    // Invalid Mass or Out of Bounds
+                    if (m <= 0 || x < 0 || x > this.worldSize || y < 0 || y > this.worldSize) {
+                        this.storage.remove(i);
+                    }
+                }
+            }
+        }
+
         // --- 3. Evolution ---
         if (energy > this.REPRO_ENERGY) {
-            if (this.storage.reproduce(idx) !== -1) {
-                this.totalBirths++;
+            // POPULATION CAP: 2000 Limit
+            if (this.storage.activeCount < 2000) {
+                if (this.storage.reproduce(idx) !== -1) {
+                    this.totalBirths++;
+                }
             }
             energy -= 80;
             const offset = idx * this.storage.stride;

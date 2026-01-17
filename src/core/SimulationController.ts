@@ -270,7 +270,10 @@ export class SimulationController {
         // this.zoom = 1.0;
 
         const now = performance.now();
-        const dt = Math.min(0.016, (now - this.lastTime) / 1000);
+        // FIXED DELTA TIME (Safety Brake)
+        // Clamp dt to max 50ms (20fps min) to prevent physics explosion
+        let dt = (now - this.lastTime) / 1000;
+        dt = Math.min(dt, 0.05);
         this.lastTime = now;
 
         this.frameCount++;

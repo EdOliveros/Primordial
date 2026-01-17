@@ -21,9 +21,9 @@ export class CellStorage {
     public visualColors!: Float32Array;
     public allianceId!: Int32Array; // -1 = None, >0 = Alliance Group ID
     public cooldowns!: Float32Array; // Fusion Cooldown Timer
+    public freeIndices: number[] = []; // Changed to public for Engine Pre-Check
 
     public activeCount: number = 0;
-    private freeIndices: number[] = [];
 
     // Global Physics Params
     public friction: number = 0.98;
