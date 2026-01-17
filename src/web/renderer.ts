@@ -205,6 +205,15 @@ export class PrimordialRenderer {
             console.error("Fragment Shader Error:", gl.getShaderInfoLog(fs));
         }
 
+        const prog = gl.createProgram()!;
+        gl.attachShader(prog, vs);
+        gl.attachShader(prog, fs);
+        gl.linkProgram(prog);
+
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+            console.error("Program Link Error:", gl.getProgramInfoLog(prog));
+        }
+
         return prog;
     }
 
