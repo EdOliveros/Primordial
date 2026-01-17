@@ -167,7 +167,8 @@ export class SimulationController {
             this.engine.storage.cells,
             this.engine.storage.maxCells,
             this.cameraPos,
-            this.zoom
+            this.zoom,
+            this.engine.storage.allianceId
         );
 
         // 3. UI Updates (throttled to 2x per second)

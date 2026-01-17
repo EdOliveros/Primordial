@@ -91,6 +91,67 @@ export class Engine {
         if (this.frameCount % 30 === 0) {
             this.checkSwarmDensity();
         }
+
+        // 7. Alliance Logic (Every 60 frames)
+        if (this.frameCount % 60 === 0) {
+            this.updateAlliances();
+        }
+    }
+
+    private updateAlliances() {
+        // Reset alliances
+        this.storage.allianceId.fill(-1);
+        let nextAllianceId = 1;
+
+        const colonies: number[] = [];
+        for (let i = 0; i < this.storage.maxCells; i++) {
+            if (this.storage.isActive[i] && this.storage.cells[i * this.storage.stride + 6] > 2.0) {
+                colonies.push(i);
+            }
+        }
+
+        const visited = new Set<number>();
+
+        for (const idx of colonies) {
+            if (visited.has(idx)) continue;
+
+            const alliance = [idx];
+            visited.add(idx);
+
+            const myGenome = this.storage.getGenome(idx);
+            const x = this.storage.getX(idx);
+            const y = this.storage.getY(idx);
+
+            // Find up to 2 partners
+            for (const otherIdx of colonies) {
+                if (alliance.length >= 3) break;
+                if (visited.has(otherIdx)) continue;
+
+                const tx = this.storage.getX(otherIdx);
+                const ty = this.storage.getY(otherIdx);
+                const distSq = (x - tx) ** 2 + (y - ty) ** 2;
+
+                if (distSq < 400 * 400) { // Search radius 400
+                    // Check genetic affinity (Euclidean distance of RGB genes)
+                    const otherGenome = this.storage.getGenome(otherIdx);
+                    // Use genes 0,1,2 (Speed, Agg, Photo) + 4 (Def) as markers
+                    let diff = 0;
+                    diff += Math.abs(myGenome[0] - otherGenome[0]);
+                    diff += Math.abs(myGenome[1] - otherGenome[1]);
+                    diff += Math.abs(myGenome[2] - otherGenome[2]);
+
+                    if (diff < 0.3) { // Very similar genetics
+                        alliance.push(otherIdx);
+                        visited.add(otherIdx);
+                    }
+                }
+            }
+
+            if (alliance.length > 1) {
+                const id = nextAllianceId++;
+                alliance.forEach(member => this.storage.allianceId[member] = id);
+            }
+        }
     }
 
     private checkSwarmDensity() {
@@ -276,8 +337,11 @@ export class Engine {
                 }
             }
 
-            // Colony Combat: Clash of Titans
-            if (myMass > 5.0 && nMass > 5.0 && nArch !== myArch) {
+            const myAlliance = this.storage.allianceId[idx];
+            const nAlliance = this.storage.allianceId[neighborIdx];
+
+            // Colony Combat: Clash of Titans (No Friendly Fire)
+            if (myMass > 5.0 && nMass > 5.0 && nArch !== myArch && (myAlliance === -1 || myAlliance !== nAlliance)) {
                 if (distSq < (myMass + nMass) * 2) { // Collision radius
                     if (myMass > nMass) {
                         // I am bigger: I drain them
@@ -291,6 +355,22 @@ export class Engine {
                         this.storage.cells[nOffset + 6] -= drain;
                     }
                 }
+            }
+
+            // Alliance Cooperation
+            if (myAlliance !== -1 && myAlliance === nAlliance) {
+                // 1. Energy Sharing (Rich helps Poor)
+                const nEnergy = this.storage.cells[neighborIdx * this.storage.stride + 4];
+                if (energy > 100 && nEnergy < 50) {
+                    const transfer = 10 * dt;
+                    energy -= transfer;
+                    this.storage.cells[neighborIdx * this.storage.stride + 4] += transfer;
+                }
+
+                // 2. Cooperative Defense (Swarm Enemy)
+                // If I see an ally, and I am defensive, maybe I don't set them as target.
+                // But also, if there is an enemy nearby (handled by standard targeting), I will attack it.
+                // To explicitly "surround enemies", we can increase Aggressiveness if an Ally is nearby.
             }
 
             // Predation

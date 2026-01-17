@@ -147,6 +147,12 @@ export class PrimordialRenderer {
     private sceneTex!: WebGLTexture;
     private glowTex!: WebGLTexture;
 
+    // Alliance Lines
+    private lineProgram!: WebGLProgram;
+    private lineVAO!: WebGLVertexArrayObject;
+    private lineBuffer!: WebGLBuffer;
+    private lineData: Float32Array = new Float32Array(4000); // Max 1000 lines (4 floats per vertex?) No, 2 floats per vertex. 2 vertices per line. = 4 floats per line. 1000 lines = 4000 floats.
+
     // Frustum Culling buffer (persistent to avoid re-allocation)
     private visibleBuffer: Float32Array;
     private readonly STRIDE = 16;
@@ -255,6 +261,18 @@ export class PrimordialRenderer {
         gl.enableVertexAttribArray(5);
         gl.vertexAttribPointer(5, 1, gl.FLOAT, false, stride, 6 * 4);
         gl.vertexAttribDivisor(5, 1);
+
+        // --- Line Setup ---
+        this.lineVAO = gl.createVertexArray()!;
+        gl.bindVertexArray(this.lineVAO);
+        this.lineBuffer = gl.createBuffer()!;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, this.lineData.byteLength, gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+        // Restore Quad VAO default
+        gl.bindVertexArray(this.quadVAO);
     }
 
     private createTexture(w: number, h: number): WebGLTexture {
@@ -294,7 +312,8 @@ export class PrimordialRenderer {
         cells: Float32Array,
         count: number,
         cameraPos: [number, number],
-        zoom: number
+        zoom: number,
+        allianceId?: Int32Array
     ) {
         const gl = this.gl;
 
@@ -370,5 +389,76 @@ export class PrimordialRenderer {
         gl.uniform1i(gl.getUniformLocation(this.bloomProgram, "uBloom"), 1);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        if (allianceId) {
+            this.drawAllianceLinks(gl, cells, count, allianceId, viewportSize, cameraPos, zoom);
+        }
+    }
+
+    private drawAllianceLinks(
+        gl: WebGL2RenderingContext,
+        cells: Float32Array,
+        count: number,
+        allianceId: Int32Array,
+        viewportSize: [number, number],
+        cameraPos: [number, number],
+        zoom: number
+    ) {
+        let lineCount = 0;
+        const stride = this.STRIDE;
+
+        // Map<AllianceID, List<Index>>
+        const alliances: Record<number, number[]> = {};
+
+        for (let i = 0; i < count; i++) {
+            const aid = allianceId[i];
+            if (aid > 0) {
+                if (!alliances[aid]) alliances[aid] = [];
+                alliances[aid].push(i);
+            }
+        }
+
+        // Generate lines
+        let dPtr = 0;
+        for (const id in alliances) {
+            const members = alliances[id];
+            if (members.length < 2) continue;
+
+            // Connect members
+            for (let i = 0; i < members.length; i++) {
+                for (let j = i + 1; j < members.length; j++) {
+                    const idxA = members[i];
+                    const idxB = members[j];
+
+                    const offA = idxA * stride;
+                    const offB = idxB * stride;
+
+                    this.lineData[dPtr++] = cells[offA];     // x1
+                    this.lineData[dPtr++] = cells[offA + 1]; // y1
+                    this.lineData[dPtr++] = cells[offB];     // x2
+                    this.lineData[dPtr++] = cells[offB + 1]; // y2
+                    lineCount++;
+
+                    if (lineCount >= 2000) break;
+                }
+            }
+        }
+
+        if (lineCount > 0) {
+            gl.useProgram(this.lineProgram);
+            gl.bindVertexArray(this.lineVAO);
+
+            gl.uniform2f(gl.getUniformLocation(this.lineProgram, "uViewport"), viewportSize[0], viewportSize[1]);
+            gl.uniform2f(gl.getUniformLocation(this.lineProgram, "uCamera"), cameraPos[0], cameraPos[1]);
+            gl.uniform1f(gl.getUniformLocation(this.lineProgram, "uZoom"), zoom);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuffer);
+            gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.lineData.subarray(0, dPtr));
+
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+            gl.drawArrays(gl.LINES, 0, lineCount * 2);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        }
     }
 }

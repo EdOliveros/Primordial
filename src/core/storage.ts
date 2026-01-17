@@ -19,6 +19,7 @@ export class CellStorage {
     public generations!: Uint32Array;
     public isActive!: Uint8Array;
     public visualColors!: Float32Array;
+    public allianceId!: Int32Array; // -1 = None, >0 = Alliance Group ID
 
     public activeCount: number = 0;
     private freeIndices: number[] = [];
@@ -41,6 +42,7 @@ export class CellStorage {
         this.generations = new Uint32Array(maxCells);
         this.isActive = new Uint8Array(maxCells);
         this.visualColors = new Float32Array(maxCells * 4);
+        this.allianceId = new Int32Array(maxCells).fill(-1);
 
         this.freeIndices = [];
         for (let i = 0; i < maxCells; i++) {
@@ -78,6 +80,7 @@ export class CellStorage {
 
         this.generations[idx] = 1;
         this.isActive[idx] = 1;
+        this.allianceId[idx] = -1;
         this.activeCount++;
 
         // Calculate Visual Class Color
