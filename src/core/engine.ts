@@ -148,8 +148,19 @@ export class Engine {
             }
 
             if (alliance.length > 1) {
-                const id = nextAllianceId++;
-                alliance.forEach(member => this.storage.allianceId[member] = id);
+                // Register valid alliance
+                for (const member of alliance) {
+                    this.storage.allianceId[member] = nextAllianceId;
+                }
+
+                // Trigger Event if size >= 3 (Significant Alliance)
+                if (alliance.length >= 3) {
+                    const sampleGenome = this.storage.getGenome(alliance[0]);
+                    const geneColor = this.getDominantArchetype(sampleGenome);
+                    this.onEvent('alliance', { color: geneColor, count: alliance.length });
+                }
+
+                nextAllianceId++;
             }
         }
     }
@@ -200,6 +211,8 @@ export class Engine {
         toMerge.forEach(cluster => this.formColony(cluster));
     }
 
+    public onEvent: (type: string, data: any) => void = () => { };
+
     private formColony(clusterIndices: number[]) {
         let totalMass = 0;
         let avgX = 0;
@@ -244,7 +257,25 @@ export class Engine {
 
             // Highlight visually as Colony (Glow)
             this.storage.cells[offset + 7] = -1.0;
+
+            // Trigger Event
+            const geneColor = this.getDominantArchetype(bestGenome);
+            this.onEvent('colony', { color: geneColor, mass: totalMass });
         }
+    }
+
+    private getDominantArchetype(genome: Float32Array): string {
+        // Simple mapping based on renderer logic (Gene 0,1,2,4 -> Color)
+        // 0: Speed (White), 1: Agg (Red), 2: Photo (Green), 4: Def (Blue)
+        let maxVal = 0;
+        let type = 'Promedio';
+
+        if (genome[1] > maxVal) { maxVal = genome[1]; type = 'Depredador (Rojo)'; }
+        if (genome[2] > maxVal) { maxVal = genome[2]; type = 'Productor (Verde)'; }
+        if (genome[4] > maxVal) { maxVal = genome[4]; type = 'Tanque (Azul)'; }
+        if (genome[0] > maxVal) { maxVal = genome[0]; type = 'Velocista (Blanco)'; }
+
+        return type;
     }
 
     private fragmentColony(idx: number, mass: number, genome: Float32Array) {

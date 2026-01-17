@@ -172,17 +172,67 @@ export class SimulationController {
         );
 
         // 3. UI Updates (throttled to 2x per second)
-        if (this.frameCount % 120 === 0) {
+        if (this.frameCount % 30 === 0) { // Check frequently for smoother events
             const tel = this.engine.getTelemetry();
-            this.onTelemetry(tel);
+
+            // Check Milestones (every ~0.5s)
+            if (this.frameCount % 300 === 0) { // Every ~5s to avoid spam
+                this.checkMilestones(tel);
+            }
+
+            if (this.frameCount % 120 === 0) {
+                this.onTelemetry(tel);
+            }
         }
 
         this.animationFrameId = requestAnimationFrame(this.loop);
     }
 
-    public resize(width: number, height: number) {
+    private checkMilestones(tel: Telemetry) {
+        if (tel.alive < 50) return; // Ignore early game
+
+        const total = tel.archetypes.reduce((a, b) => a + b, 0);
+        if (total === 0) return;
+
+        const GENE_NAMES = ["Velocista", "Depredador", "Productor", "Tanque", "Velocista (Def)"]; // Simplified mapping
+
+        // check extinction risk (< 5% but was previously existing)
+        // Simplified check: Just dominant vs dying
+        tel.archetypes.forEach((count, i) => {
+            const pct = count / total;
+            // 0: Speed, 1: Agg, 2: Photo, 3: Tank... (Indices match renderer/engine logic roughly)
+            // Note: Tel archetypes array logic depends on engine implementation. 
+            // Assuming 1=Agg, 2=Prod, 3=Tank based on renderer.
+
+            if (pct > 0.8 && i > 0) {
+                this.onEvent(`Hito: La especie ${GENE_NAMES[i]} domina el 80% del ecosistema.`);
+            }
+        });
+    }
+
+    public onEvent: (msg: string) => void = () => { };
+
+    constructor(canvas: HTMLCanvasElement) {
+        this.canvas = canvas;
+        this.renderer = new PrimordialRenderer(canvas);
+        // Ensure renderer starts with correct size
+        this.renderer.resize(canvas.width, canvas.height);
+        this.engine = new Engine(1000, 100000);
+
+        // Hook Engine Events
+        this.engine.onEvent = (type, data) => {
+            if (type === 'colony') {
+                if (Math.random() > 0.7) { // Filter spam
+                    this.onEvent(`La especie ${data.color} ha formado una super-colonia.`);
+                }
+            }
+            if (type === 'alliance') {
+                this.onEvent(`¡Alianza formada! 3 colonias ${data.color} cooperan.`);
+            }
+        };
+    }
         this.canvas.width = width;
-        this.canvas.height = height;
-        this.renderer.resize(width, height);
+this.canvas.height = height;
+this.renderer.resize(width, height);
     }
 }

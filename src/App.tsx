@@ -1,9 +1,4 @@
-import React, { useState, useRef } from 'react';
-import GameCanvas from './components/GameCanvas';
-import UIOverlay from './components/UIOverlay';
-import InfoPanel from './components/InfoPanel';
-import StartScreen from './components/StartScreen';
-import { SimulationController, Telemetry } from './core/SimulationController';
+import EventLog, { GameEvent } from './components/EventLog';
 
 const App: React.FC = () => {
     const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
@@ -12,6 +7,7 @@ const App: React.FC = () => {
     const [inspectedCell, setInspectedCell] = useState<any | null>(null);
     const [isRunning, setIsRunning] = useState(false);
     const [uiVisible, setUiVisible] = useState(true);
+    const [events, setEvents] = useState<GameEvent[]>([]);
 
     const controllerRef = useRef<SimulationController | null>(null);
 
@@ -26,8 +22,29 @@ const App: React.FC = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+    const handleEvent = (text: string) => {
+        const newEvent: GameEvent = {
+            id: Date.now() + Math.random(),
+            text,
+            type: text.includes('Alianza') ? 'success' : text.includes('Hito') ? 'milestone' : 'info',
+            timestamp: Date.now()
+        };
+
+        setEvents(prev => {
+            const list = [...prev, newEvent];
+            if (list.length > 5) list.shift(); // Keep max 5
+            return list;
+        });
+
+        // Auto remove
+        setTimeout(() => {
+            setEvents(prev => prev.filter(e => e.id !== newEvent.id));
+        }, 5000);
+    };
+
     const handleStart = (settings: { count: number, mutation: number, food: number, friction: number }) => {
         if (controllerRef.current) {
+            controllerRef.current.onEvent = handleEvent; // Hook event listener
             controllerRef.current.start(settings);
             setIsRunning(true);
         }
@@ -67,6 +84,7 @@ const App: React.FC = () => {
                         onDismiss={handleDismiss}
                     />
                     <InfoPanel telemetry={telemetry} />
+                    <EventLog events={events} />
                 </div>
             )}
         </div>
