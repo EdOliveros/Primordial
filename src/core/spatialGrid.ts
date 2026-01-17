@@ -7,7 +7,7 @@ export class SpatialGrid {
     private gridCount: Int32Array; // Stores number of cells in each grid cell
     private gridOffset: Int32Array; // Stores offset in the flat grid array
 
-    private readonly resolution: number = 100; // 1500 / 100 = 15 cells (15x15 grid)
+    private readonly resolution: number = 100; // 1000 / 100 = 10 cells (10x10 grid)
     private readonly worldSize: number;
     private readonly maxCells: number;
 

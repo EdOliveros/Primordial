@@ -3,7 +3,6 @@ import GameCanvas from './components/GameCanvas';
 import UIOverlay from './components/UIOverlay';
 import InfoPanel from './components/InfoPanel';
 import StartScreen from './components/StartScreen';
-import Minimap from './components/Minimap';
 import { SimulationController, Telemetry } from './core/SimulationController';
 
 const App: React.FC = () => {
@@ -31,10 +30,6 @@ const App: React.FC = () => {
         setInspectedCell(null);
     };
 
-    const handleNavigate = (x: number, y: number) => {
-        controllerRef.current?.setCameraPos(x, y);
-    };
-
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <GameCanvas
@@ -60,12 +55,6 @@ const App: React.FC = () => {
                         onDismiss={handleDismiss}
                     />
                     <InfoPanel telemetry={telemetry} />
-                    <Minimap
-                        cameraPos={controllerRef.current?.cameraPos || [750, 750]}
-                        zoom={controllerRef.current?.zoom || 1}
-                        onNavigate={handleNavigate}
-                        worldSize={1500}
-                    />
                 </>
             )}
         </div>

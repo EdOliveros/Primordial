@@ -25,7 +25,7 @@ export class SimulationController {
     public onFrame: (frameCount: number) => void = () => { };
     public onInspector: (cell: any) => void = () => { };
 
-    public cameraPos: [number, number] = [750, 750]; // Center of 1500x1500 world
+    public cameraPos: [number, number] = [500, 500]; // Center of 1000x1000 world
     public zoom = 1.0;
     public targetZoom = 1.0;
     public followingIdx: number | null = null;
@@ -44,7 +44,7 @@ export class SimulationController {
         this.renderer = new PrimordialRenderer(canvas);
         // Ensure renderer starts with correct size
         this.renderer.resize(canvas.width, canvas.height);
-        this.engine = new Engine(1500, 100000);
+        this.engine = new Engine(1000, 100000);
     }
 
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
@@ -58,8 +58,8 @@ export class SimulationController {
         for (let i = 0; i < Math.min(settings.count, 100000); i++) {
             const genome = new Float32Array(8).map(() => Math.random());
             this.engine.storage.spawn(
-                Math.random() * 1500,
-                Math.random() * 1500,
+                Math.random() * 1000,
+                Math.random() * 1000,
                 genome
             );
         }
@@ -83,6 +83,10 @@ export class SimulationController {
     public pan(dx: number, dy: number) {
         this.cameraPos[0] -= dx / this.zoom;
         this.cameraPos[1] -= dy / this.zoom;
+
+        // Constrain camera to world bounds (0-1000)
+        this.cameraPos[0] = Math.max(0, Math.min(1000, this.cameraPos[0]));
+        this.cameraPos[1] = Math.max(0, Math.min(1000, this.cameraPos[1]));
     }
 
     public setKeyState(key: string, pressed: boolean) {
@@ -107,6 +111,10 @@ export class SimulationController {
         if (dx !== 0 || dy !== 0) {
             this.cameraPos[0] += dx;
             this.cameraPos[1] += dy;
+
+            // Constrain camera to world bounds (0-1000)
+            this.cameraPos[0] = Math.max(0, Math.min(1000, this.cameraPos[0]));
+            this.cameraPos[1] = Math.max(0, Math.min(1000, this.cameraPos[1]));
         }
     }
 
