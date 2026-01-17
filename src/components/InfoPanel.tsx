@@ -1,4 +1,3 @@
-```
 import React, { useState } from 'react';
 import { Telemetry } from '../core/SimulationController';
 
@@ -31,15 +30,16 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry, onRegisterEvent }) => 
         if (code === 'VIS') { domSpecies = "Depredador"; flavor = "tiene el mejor rango de visión."; }
         if (code === 'SIZ') { domSpecies = "Tanque"; flavor = "posee la mayor biomasa promedio."; }
         if (code === 'SOC') { domSpecies = "Productor"; flavor = "es la más sociable y forma colonias."; }
-
+        if (code === 'MUT') { domSpecies = "Velocista"; flavor = "evoluciona más rápido que las demás."; }
+        if (code === 'LIF') { domSpecies = "Tanque"; flavor = "es la más longeva."; }
 
         // Find count for context (mock logic for now as simplified mapping)
         const id = species.find(s => s.name === domSpecies)?.id || 0;
         const count = telemetry.archetypes[id] || 0;
 
-        onRegisterEvent(`Análisis(${ code }): La especie ${ domSpecies } ${ flavor } (${ count } activos)`);
+        onRegisterEvent(`Análisis (${code}): La especie ${domSpecies} ${flavor} (${count} activos)`);
     };
-    
+
     const total = telemetry?.archetypes.reduce((a, b) => a + b, 0) || 0;
 
     // CSS Pie Chart calculation (conic-gradient)
@@ -49,13 +49,13 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry, onRegisterEvent }) => 
         const percent = total > 0 ? (count / total) * 100 : 0;
         const start = cumulativePercent;
         cumulativePercent += percent;
-        return `${ s.color } ${ start }% ${ cumulativePercent }% `;
+        return `${s.color} ${start}% ${cumulativePercent}%`;
     }).join(', ');
 
     return (
-        <div className={`info - panel ${ isOpen ? 'open' : '' } `} style={{ pointerEvents: 'auto' }}>
+        <div className={`info-panel ${isOpen ? 'open' : ''}`} style={{ pointerEvents: 'auto' }}>
             <button
-                className={`panel - toggle - btn ${ isOpen ? 'active' : '' } `}
+                className={`panel-toggle-btn ${isOpen ? 'active' : ''}`}
                 style={{ top: '0', left: '-50px', background: 'var(--bg-blur)' }}
                 onClick={() => setIsOpen(!isOpen)}
             >
@@ -69,7 +69,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry, onRegisterEvent }) => 
                 </div>
 
                 <div className="chart-container">
-                    <div className="pie-chart" style={{ background: total > 0 ? `conic - gradient(${ gradient })` : '#333' }}>
+                    <div className="pie-chart" style={{ background: total > 0 ? `conic-gradient(${gradient})` : '#333' }}>
                         <div className="pie-center">
                             <span>{total.toLocaleString()}</span>
                             <small>Células</small>
@@ -163,4 +163,3 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry, onRegisterEvent }) => 
 };
 
 export default React.memo(InfoPanel);
-```
