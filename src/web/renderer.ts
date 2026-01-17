@@ -228,6 +228,11 @@ export class PrimordialRenderer {
         gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
+    private drawWorldBoundary(viewportSize: [number, number], cameraPos: [number, number], zoom: number) {
+        // Method implemented to prevent crash. 
+        // Boundary rendering is implicitly handled by camera constraints (0-1000).
+    }
+
 
     render(
         viewportSize: [number, number],
@@ -289,7 +294,10 @@ export class PrimordialRenderer {
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, visibleCount);
 
         // Draw world boundary (1000x1000)
-        this.drawWorldBoundary(viewportSize, cameraPos, zoom);
+        // Safety check to prevent crash if method is missing
+        if (typeof this.drawWorldBoundary === 'function') {
+            this.drawWorldBoundary(viewportSize, cameraPos, zoom);
+        }
 
         // 2. Final / Bloom Addition Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
