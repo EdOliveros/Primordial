@@ -52,11 +52,27 @@ export class PrimordialRenderer {
         // Move to world position
         ctx.translate(-cameraPos[0], -cameraPos[1]);
 
-        // --- 3. DRAW ENTITIES ---
+        // --- 3. DRAW ENTITIES (DEPTH SORTED) ---
+        // 3a. Create Index Array of Active Entities
+        const indices: number[] = [];
         for (let i = 0; i < count; i++) {
-            // STRICT ACTIVE CHECK
-            if (isActive[i] === 0) continue;
+            if (isActive[i] === 1) {
+                indices.push(i);
+            }
+        }
 
+        // 3b. Sort by Mass (Descending: Largest First -> Bottom Layer)
+        // Accessing TypedArray inside sort is relatively fast for <10k entities
+        indices.sort((a, b) => {
+            const massA = cells[a * this.STRIDE + 6];
+            const massB = cells[b * this.STRIDE + 6];
+            return massB - massA;
+        });
+
+        // 3c. Draw Loop
+        ctx.globalAlpha = 1.0; // Enforce Opaqueness
+
+        for (const i of indices) {
             const offset = i * this.STRIDE;
 
             const x = cells[offset];
@@ -65,32 +81,33 @@ export class PrimordialRenderer {
             // Validation
             if (Number.isNaN(x) || Number.isNaN(y)) continue;
 
-            const energy = cells[offset + 4];
-            if (energy <= 0) continue; // Skip dead
+            const energy = cells[offset + 4]; // Should be handled by isActive, but double check
+            if (energy <= 0) continue;
 
             const mass = cells[offset + 6];
             const arch = cells[offset + 5];
 
-            // Radius Logic
+            // Radius Logic (Same as before)
             const safeMass = Math.max(1.0, mass);
             const radius = 8.0 * (1.0 + Math.log(safeMass) * 1.5);
             const visualRadius = radius || 5;
 
-            // Color Logic
+            // Color Logic (Same as before)
             let color = '#ff00ff';
             switch (Math.floor(arch)) {
-                case 1: color = '#ff3333'; break; // Predator (Red)
-                case 2: color = '#33ff33'; break; // Producer (Green)
-                case 3: color = '#0088ff'; break; // Tank (Blue)
-                case 4: color = '#ffffff'; break; // Speedster (White)
+                case 1: color = '#ff3333'; break;
+                case 2: color = '#33ff33'; break;
+                case 3: color = '#0088ff'; break;
+                case 4: color = '#ffffff'; break;
                 default: color = '#888888'; break;
             }
 
-            // Draw One Circle
+            // Draw One Circle (Strict Isolation)
             ctx.beginPath();
             ctx.arc(x, y, visualRadius, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
+            ctx.closePath(); // Explicit Close
         }
 
         // --- 4. RESTORE STATE ---
