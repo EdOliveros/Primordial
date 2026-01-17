@@ -61,10 +61,10 @@ const App: React.FC = () => {
                     />
                     <InfoPanel telemetry={telemetry} />
                     <Minimap
-                        cameraPos={controllerRef.current?.cameraPos || [2500, 2500]}
+                        cameraPos={controllerRef.current?.cameraPos || [750, 750]}
                         zoom={controllerRef.current?.zoom || 1}
                         onNavigate={handleNavigate}
-                        worldSize={5000}
+                        worldSize={1500}
                     />
                 </>
             )}

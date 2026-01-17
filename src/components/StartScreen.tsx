@@ -6,7 +6,7 @@ interface StartScreenProps {
 
 const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
     const [settings, setSettings] = useState({
-        count: 5000,
+        count: 2000,
         mutation: 1.0,
         food: 1.0,
         friction: 0.98
@@ -38,9 +38,9 @@ const StartScreen: React.FC<StartScreenProps> = ({ onStart }) => {
                     </div>
                     <input
                         type="range"
-                        min="1000"
-                        max="20000"
-                        step="500"
+                        min="500"
+                        max="5000"
+                        step="100"
                         value={settings.count}
                         onChange={(e) => setSettings({ ...settings, count: parseInt(e.target.value) })}
                     />
