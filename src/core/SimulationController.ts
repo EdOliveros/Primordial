@@ -188,51 +188,49 @@ export class SimulationController {
         this.animationFrameId = requestAnimationFrame(this.loop);
     }
 
+    private previousTelemetry: Telemetry | null = null;
+
     private checkMilestones(tel: Telemetry) {
         if (tel.alive < 50) return; // Ignore early game
 
         const total = tel.archetypes.reduce((a, b) => a + b, 0);
         if (total === 0) return;
 
-        const GENE_NAMES = ["Velocista", "Depredador", "Productor", "Tanque", "Velocista (Def)"]; // Simplified mapping
+        const GENE_NAMES = ["Velocista", "Depredador", "Productor", "Tanque", "Velocista (Def)"];
 
-        // check extinction risk (< 5% but was previously existing)
-        // Simplified check: Just dominant vs dying
+        // 1. Dominance Check
         tel.archetypes.forEach((count, i) => {
             const pct = count / total;
-            // 0: Speed, 1: Agg, 2: Photo, 3: Tank... (Indices match renderer/engine logic roughly)
-            // Note: Tel archetypes array logic depends on engine implementation. 
-            // Assuming 1=Agg, 2=Prod, 3=Tank based on renderer.
-
             if (pct > 0.8 && i > 0) {
                 this.onEvent(`Hito: La especie ${GENE_NAMES[i]} domina el 80% del ecosistema.`);
             }
         });
+
+        // 2. Trend Analysis (vs previous snapshot)
+        if (this.previousTelemetry) {
+            const prevTotal = this.previousTelemetry.archetypes.reduce((a, b) => a + b, 0);
+            if (prevTotal > 0) {
+                tel.archetypes.forEach((count, i) => {
+                    const pct = count / total;
+                    const prevPct = this.previousTelemetry!.archetypes[i] / prevTotal;
+                    const delta = pct - prevPct;
+
+                    if (delta > 0.10) {
+                        this.onEvent(`¡Explosión demográfica! La especie ${GENE_NAMES[i]} crece rápidamente.`);
+                    }
+                    if (delta < -0.10) {
+                        this.onEvent(`Alerta de Colapso: La especie ${GENE_NAMES[i]} está en declive.`);
+                    }
+                });
+            }
+        }
+
+        // Save snapshot (clone to avoid reference issues)
+        this.previousTelemetry = JSON.parse(JSON.stringify(tel));
     }
 
     public onEvent: (msg: string) => void = () => { };
 
-    constructor(canvas: HTMLCanvasElement) {
-        this.canvas = canvas;
-        this.renderer = new PrimordialRenderer(canvas);
-        // Ensure renderer starts with correct size
-        this.renderer.resize(canvas.width, canvas.height);
-        this.engine = new Engine(1000, 100000);
-
-        // Hook Engine Events
-        this.engine.onEvent = (type, data) => {
-            if (type === 'colony') {
-                if (Math.random() > 0.7) { // Filter spam
-                    this.onEvent(`La especie ${data.color} ha formado una super-colonia.`);
-                }
-            }
-            if (type === 'alliance') {
-                this.onEvent(`¡Alianza formada! 3 colonias ${data.color} cooperan.`);
-            }
-        };
-    }
+    public resize(width: number, height: number) {
         this.canvas.width = width;
-this.canvas.height = height;
-this.renderer.resize(width, height);
     }
-}

@@ -371,21 +371,31 @@ export class Engine {
             const myAlliance = this.storage.allianceId[idx];
             const nAlliance = this.storage.allianceId[neighborIdx];
 
-            // Colony Combat: Clash of Titans (No Friendly Fire)
-            if (myMass > 5.0 && nMass > 5.0 && nArch !== myArch && (myAlliance === -1 || myAlliance !== nAlliance)) {
-                if (distSq < (myMass + nMass) * 2) { // Collision radius
-                    if (myMass > nMass) {
-                        // I am bigger: I drain them
-                        const drain = (myMass - nMass) * 0.5 * dt;
-                        energy += drain * 10;
+            // Predation / Fighting
+            // If aggressive (> 0.5) and larger mass, steal mass
+            // Added Logic: Alliance Protection (Don't eat allies)
+            const otherAlliance = this.storage.allianceId[neighborIdx];
+            const areAllies = myAlliance !== -1 && myAlliance === otherAlliance;
 
-                        const myOffset = idx * this.storage.stride;
-                        const nOffset = neighborIdx * this.storage.stride;
+            if (!areAllies && aggressiveness > 0.5 && myMass > nMass * 1.2) {
+                const steal = 1.5 * dt; // Mass transfer rate
 
-                        this.storage.cells[myOffset + 6] += drain;
-                        this.storage.cells[nOffset + 6] -= drain;
-                    }
+                // Check for assimilation event (Colony vs Colony)
+                if (myMass > 2.0 && nMass > 2.0 && (nMass - steal) <= 0.1) {
+                    // Imminent death of other colony
+                    const myGenome = this.storage.getGenome(idx);
+                    const otherGenome = this.storage.getGenome(neighborIdx);
+                    this.onEvent('assimilation', {
+                        predator: this.getDominantArchetype(myGenome),
+                        prey: this.getDominantArchetype(otherGenome)
+                    });
                 }
+
+                this.storage.cells[offset + 6] += steal;
+                this.storage.cells[neighborIdx * this.storage.stride + 6] -= steal;
+
+                // Gain energy from eating
+                this.storage.cells[offset + 4] += steal * 10;
             }
 
             // Alliance Cooperation
