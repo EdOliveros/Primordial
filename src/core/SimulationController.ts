@@ -30,7 +30,7 @@ export class SimulationController {
     public followingIdx: number | null = null;
     public inspectedCell: any = null;
 
-    private animationFrameId: number | null = null;
+    private animationId: number | null = null;
 
     // Keyboard navigation state
     private keyState = {
@@ -39,6 +39,9 @@ export class SimulationController {
     };
 
     constructor(canvas: HTMLCanvasElement) {
+        // ID de Instancia para debugging (Anti Gravity Request)
+        console.log('Nueva instancia de Simulación creada:', Math.random());
+
         this.canvas = canvas;
         this.renderer = new PrimordialRenderer(canvas);
         // Ensure renderer starts with correct size
@@ -47,6 +50,12 @@ export class SimulationController {
     }
 
     public start(settings: { count: number, mutation: number, food: number, friction: number }) {
+        // Prevent double loop
+        if (this.animationId !== null) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
+        }
+
         this.engine.applySettings({
             mutationRate: settings.mutation,
             foodAbundance: settings.food,
@@ -163,8 +172,9 @@ export class SimulationController {
 
     public stop() {
         this.isSimulationRunning = false;
-        if (this.animationFrameId !== null) {
-            cancelAnimationFrame(this.animationFrameId);
+        if (this.animationId !== null) {
+            cancelAnimationFrame(this.animationId);
+            this.animationId = null;
         }
     }
 
@@ -289,7 +299,7 @@ export class SimulationController {
             } catch (e) { console.error("Error in UI/Telemetry:", e); }
         }
 
-        this.animationFrameId = requestAnimationFrame(this.loop);
+        this.animationId = requestAnimationFrame(this.loop);
     }
 
     private previousTelemetry: Telemetry | null = null;

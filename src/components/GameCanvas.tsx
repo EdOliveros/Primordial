@@ -9,7 +9,7 @@ interface GameCanvasProps {
     controllerRef: React.MutableRefObject<SimulationController | null>;
 }
 
-const GameCanvas: React.FC<GameCanvasProps> = ({
+const GameCanvas: React.FC<GameCanvasProps> = React.memo(({
     onTelemetry,
     onFPS,
     onFrame,
@@ -20,14 +20,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const isDragging = useRef(false);
     const lastMousePos = useRef({ x: 0, y: 0 });
     const isSpaceDown = useRef(false);
-    const isInitialized = useRef(false); // Prevent double initialization in React Strict Mode
+    const isInitialized = useRef(false);
 
     useEffect(() => {
-        // Guard against React Strict Mode double-invocation
         if (isInitialized.current) return;
 
         if (canvasRef.current) {
             isInitialized.current = true;
+            console.log("Canvas Effect Mounted (Should only see this once per session)"); // Debug Log
 
             const controller = new SimulationController(canvasRef.current);
             controller.onTelemetry = onTelemetry;
@@ -61,9 +61,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
             const handleContextRestored = () => {
                 console.log("WebGL Context Restored. Restarting...");
-                // In a full app, we might need to re-init resources here.
-                // For now, ensuring the page/canvas survives is key.
-                window.location.reload(); // Quickest rescue for this prototype
+                window.location.reload();
             };
 
             canvasRef.current.addEventListener('webglcontextlost', handleContextLost);
@@ -97,14 +95,15 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             window.addEventListener('keyup', handleKeyUp);
 
             return () => {
-                controller.stop();
+                console.log("Canvas Effect Unmounting/Cleanup - STOPPING SIM"); // Debug Log
+                controller.stop(); // Force Stop
                 resizeObserver.disconnect();
                 window.removeEventListener('keydown', handleKeyDown);
                 window.removeEventListener('keyup', handleKeyUp);
-                isInitialized.current = false; // Reset flag on cleanup
+                isInitialized.current = false;
             };
         }
-    }, []);
+    }, []); // Empty dependency array ensures run once
 
     const handleMouseDown = (e: React.MouseEvent) => {
         if (e.button === 2 || (e.button === 0 && isSpaceDown.current)) {
@@ -160,6 +159,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             }}
         />
     );
-};
+});
 
 export default GameCanvas;
