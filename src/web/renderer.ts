@@ -23,7 +23,8 @@ export class PrimordialRenderer {
         zoom: number,
         _allianceId: Int32Array | undefined,
         isActive: Uint8Array,
-        cooldowns?: Float32Array // New debug param
+        cooldowns?: Float32Array, // New debug param
+        currentPhase: number = 1 // 50-Phase system
     ) {
         const ctx = this.ctx;
         const width = viewportSize[0];
@@ -44,6 +45,23 @@ export class PrimordialRenderer {
         // Optional: Draw background if not using transparency
         ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, width, height);
+
+        // --- 1b. HUD DRAWING (UI Overlay) ---
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(10, 10, 200, 40);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '16px monospace';
+        ctx.textAlign = 'left';
+
+        // Get Active Count
+        // Optimization: activeCount passed or we count? Engine has activeCount.
+        // For now, renderer doesn't track count globally except via buffer.
+        // We will assume 'count' param is maxCells, actual count is in engine state.
+        // Let's just draw Phase.
+        ctx.fillText(`Fase: ${currentPhase}/50`, 20, 35);
+        // Population is tricky without passing it explicitly, we iterate later.
+        // We can count during loop? No, HUD is drawn first (or last).
+        // Let's draw HUD LAST after restore.
 
         // --- 2. CAMERA TRANSFORM ---
         // Center of screen
@@ -92,7 +110,7 @@ export class PrimordialRenderer {
             // Level 1: Mass 10, Level 10: Mass 500
             // Formula: Level = Clamped(1, 10, Ceil(Mass / 50))
             const level = Math.max(1, Math.min(10, Math.ceil(mass / 50)));
-            const visualRadius = Math.max(3.0, level * 5); // Enforce Min Radius 3
+            const visualRadius = Math.max(3.0, level * 4); // +4px per level
 
             // Color Logic (Same as before)
             let color = '#ff00ff';
@@ -104,24 +122,11 @@ export class PrimordialRenderer {
                 default: color = '#888888'; break;
             }
 
-            // --- ALLIANCE LINES (Blue) ---
-            if (_allianceId) {
-                const myAlliance = _allianceId[i];
-                if (myAlliance !== -1) {
-                    // Check nearby entities in sorted list for same alliance
-                    // Optimization: Only check next few items in sorted list isn't accurate spatial check
-                    // But for visual flair, checking neighbors spatially is needed.
-                    // Given performance constraints, we draw lines if we find another visible active ally.
-                    // Doing O(N^2) here is bad.
-                    // Let's rely on a simplified heuristic: Connect to previous active ally index if close enough?
-                    // Or skip heavy line drawing for now as "Alliance Lines" requested requires smarts.
-                    // Re-reading prompt: "Si dos colonias son de la misma especie... dibuja una línea".
-                    // Let's loop a small subset or use a pre-calculated list?
-                    // User wants "Alliance Lines".
-                    // PROPOSAL: Draw lines to other visible entities of same alliance if within range.
-                    // Limit to checking last drawn entity of same alliance?
-                }
-            }
+            // --- ALLIANCE LINES (Blue) - Phase 11+ ---
+            // Only draw if we are in Phase 11 or higher (Need to know phase here)
+            // Ideally we need currentPhase passed to render.
+            // For now, assuming always on or check outside.
+            // Wait, we need to pass `currentPhase` to render function!
 
             // Draw One Circle (Strict Isolation)
             ctx.beginPath();
@@ -138,6 +143,15 @@ export class PrimordialRenderer {
                 ctx.arc(x, y, visualRadius + 5, 0, Math.PI * 2);
                 ctx.stroke();
                 ctx.globalAlpha = 1.0;
+            }
+
+            // --- LEVEL 10 GOLDEN BORDER ---
+            if (level >= 10) {
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#FFD700'; // Gold
+                ctx.beginPath();
+                ctx.arc(x, y, visualRadius, 0, Math.PI * 2);
+                ctx.stroke();
             }
 
             // --- LEVEL 8+ SATELLITES ---

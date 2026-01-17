@@ -25,6 +25,7 @@ export class Engine {
     public totalBirths: number = 0;
     public totalDeaths: number = 0;
     public totalTime: number = 0; // New: Track total simulation time
+    public currentPhase: number = 1; // 1 to 50
 
     constructor(worldSize: number, maxCells: number) {
         this.worldSize = worldSize;
@@ -104,6 +105,89 @@ export class Engine {
         // 7. Alliance Logic (Every 60 frames)
         if (this.frameCount % 60 === 0) {
             this.updateAlliances();
+            this.checkPhaseProgression();
+        }
+
+        // 8. APEX GRAVITY WELL (Phase 50)
+        if (this.currentPhase === 50 && this.frameCount % 5 === 0) {
+            this.applyApexGravity();
+        }
+    }
+
+    private checkPhaseProgression() {
+        if (this.currentPhase >= 50) return;
+
+        // Sample mass distribution logic
+        // We need to know if "10% of population has reached new mass threshold"
+        // Let's simplified approach: Collect all masses, sort, find 90th percentile.
+        // If 90th percentile mass > Next Phase Threshold, Advance.
+
+        // Count active cells first
+        let masses: number[] = [];
+        for (let i = 0; i < this.storage.maxCells; i++) {
+            if (this.storage.isActive[i]) {
+                masses.push(this.storage.cells[i * this.storage.stride + 6]);
+            }
+        }
+
+        if (masses.length < 10) return; // Need population to evolve
+
+        // Sort descending
+        masses.sort((a, b) => b - a);
+
+        // Top 10% index
+        const top10Index = Math.floor(masses.length * 0.1);
+        const top10Mass = masses[top10Index];
+
+        // Threshold Logic:
+        // Phase 1 -> 2 requires top 10% to have Mass > 20? 
+        // Let's scale: Phase X target mass = X * 10.
+        // Phase 10 = Mass 100. Phase 50 = Mass 500.
+        const nextPhaseTarget = (this.currentPhase + 1) * 10;
+
+        if (top10Mass >= nextPhaseTarget) {
+            this.currentPhase++;
+            this.onEvent('phase_change', { phase: this.currentPhase });
+            console.log(`>>> PHASE UPGRADE: ${this.currentPhase} (Top10 Mass: ${top10Mass})`);
+        }
+    }
+
+    private applyApexGravity() {
+        // Find Apex (Highest Mass)
+        let maxMass = -1;
+        let apexIdx = -1;
+        for (let i = 0; i < this.storage.maxCells; i++) {
+            if (this.storage.isActive[i]) {
+                const m = this.storage.cells[i * this.storage.stride + 6];
+                if (m > maxMass) {
+                    maxMass = m;
+                    apexIdx = i;
+                }
+            }
+        }
+
+        if (apexIdx !== -1) {
+            const ax = this.storage.getX(apexIdx);
+            const ay = this.storage.getY(apexIdx);
+
+            // Pull everyone else
+            for (let i = 0; i < this.storage.maxCells; i++) {
+                if (this.storage.isActive[i] && i !== apexIdx) {
+                    const x = this.storage.getX(i);
+                    const y = this.storage.getY(i);
+                    const dx = ax - x;
+                    const dy = ay - y;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq > 100) { // Limit force near center
+                        const dist = Math.sqrt(distSq);
+                        const force = 500.0 / distSq; // Inverse Square
+                        const off = i * this.storage.stride;
+                        this.storage.cells[off + 2] += (dx / dist) * force;
+                        this.storage.cells[off + 3] += (dy / dist) * force;
+                    }
+                }
+            }
         }
     }
 
@@ -259,6 +343,9 @@ export class Engine {
     public onEvent: (type: string, data: any) => void = () => { };
 
     private formColony(clusterIndices: number[]) {
+        // PHASE RULE: Fusion only allowed from Phase 11+
+        if (this.currentPhase < 11) return;
+
         // FILTER: Remove cells on Fusion Cooldown
         const validIndices = clusterIndices.filter(idx => this.storage.cooldowns[idx] <= 0);
 
@@ -391,14 +478,30 @@ export class Engine {
         if (defense > 0.7) energyBurnRate = 0.8; // -20% cost for tanks
 
         // --- 1. Thermodynamics ---
+        // PHASE RULE: Speed & Cost
+        let phaseSpeedMult = 1.0;
+        let phaseCostMult = 1.0;
+
+        if (this.currentPhase <= 10) {
+            // Early Phase: Slow and Safe
+            phaseSpeedMult = 0.5;
+            phaseCostMult = 0.5;
+        }
+
         const vx = this.storage.cells[offset + 2];
         const vy = this.storage.cells[offset + 3];
         const currentSpeedSq = vx * vx + vy * vy;
-        const energyCost = (currentSpeedSq * 0.5 + Math.pow(size, 3) * 1 + visionRange * 0.005) * dt * energyBurnRate;
+        const energyCost = (currentSpeedSq * 0.5 + Math.pow(size, 3) * 1 + visionRange * 0.005) * dt * energyBurnRate * phaseCostMult;
         energy -= energyCost;
 
         const solarIntensity = this.environment.getSolarIntensity(x, y);
-        let energyGain = (solarIntensity * photoEfficiency * 45.0 * this.foodAbundance) * dt;
+
+        // PHASE RULE: Food Abundance
+        let dynamicFood = this.foodAbundance;
+        if (this.currentPhase <= 10) dynamicFood *= 2.0; // Early abundance
+
+        let energyGain = (solarIntensity * photoEfficiency * 45.0 * dynamicFood) * dt;
+
 
         // Scaled Feeding: Colonies eat more efficiently (Logarithmic Efficiency)
         if (mass > 2.0) {
@@ -446,7 +549,14 @@ export class Engine {
 
             // 1. Absorption (The Blob Logic)
             // Rule: Bigger eats Smaller (REQUIRE 30% ADVANTAGE)
-            if (myMass > nMass * 1.3) {
+            // PHASE RULE: Giant Absorption (Phase 41+) ALWAYS eats on contact if > 1.3x
+            // Or Standard predation?
+            // "Fases 41-50: Fase de Gigantes. Las colonias grandes absorben a las pequeñas al contacto."
+
+            let absorbThreshold = 1.3;
+            if (this.currentPhase >= 41) absorbThreshold = 1.1; // Aggressive Absorption
+
+            if (myMass > nMass * absorbThreshold) {
                 // Calculate "Eat Radius" based on mass (Logarithmic)
                 const eatRadiusSq = (8.0 * (1.0 + Math.log(myMass) * 1.5)) ** 2; // Match visual radius somewhat
 
@@ -554,7 +664,7 @@ export class Engine {
             const dx = x - tx;
             const dy = y - ty;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            const maxSpeed = speedMultiplier * 100 * sizeSpeedPenalty; // Apply Penalty
+            const maxSpeed = speedMultiplier * 100 * sizeSpeedPenalty * phaseSpeedMult; // Apply Phase Penalty
             if (dist > 0.1) {
                 const offset = idx * this.storage.stride;
                 this.storage.cells[offset + 2] = (dx / dist) * maxSpeed;
@@ -566,7 +676,7 @@ export class Engine {
             const dx = tx - x;
             const dy = ty - y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            const maxSpeed = speedMultiplier * 100 * sizeSpeedPenalty; // Apply Penalty
+            const maxSpeed = speedMultiplier * 100 * sizeSpeedPenalty * phaseSpeedMult; // Apply Phase Penalty
             if (dist > 0.1) {
                 const offset = idx * this.storage.stride;
                 this.storage.cells[offset + 2] = (dx / dist) * maxSpeed;
@@ -578,7 +688,7 @@ export class Engine {
                 this.storage.remove(bestTarget);
             }
         } else {
-            this.wander(idx, speedMultiplier * sizeSpeedPenalty); // Apply Penalty
+            this.wander(idx, speedMultiplier * sizeSpeedPenalty * phaseSpeedMult); // Apply Phase Penalty
         }
 
         // --- 3. Evolution ---

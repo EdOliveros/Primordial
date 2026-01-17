@@ -301,7 +301,8 @@ export class SimulationController {
                     this.zoom,
                     this.engine.storage.allianceId,
                     this.engine.storage.isActive, // Pass isActive for strict filtering
-                    this.engine.storage.cooldowns // Pass cooldowns for debug visuals
+                    this.engine.storage.cooldowns, // Pass cooldowns for debug visuals
+                    this.engine.currentPhase // Pass Phase for Visuals/HUD
                 );
             }
         } catch (e) {
