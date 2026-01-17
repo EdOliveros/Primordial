@@ -6,6 +6,8 @@
 
 **Primordial** es un simulador de vida artificial basado en WebGL donde las células evolucionan, forman colonias y crean alianzas estratégicas en tiempo real. Diseñado para correr en el navegador con alto rendimiento.
 
+**🔗 [Jugar Ahora en Vercel](https://primordial-two.vercel.app/)**
+
 ## 🌟 Características Principales
 
 - **Micro-Mundo Masivo**: Un entorno de 1000x1000 unidades con capacidad para miles de células simultáneas.
