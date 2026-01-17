@@ -6,8 +6,8 @@ layout(location = 3) in float aEnergy;   // Instance Energy
 layout(location = 4) in float aArch;     // Instance Archetype
 layout(location = 5) in float aMass;     // Instance Mass
 
-uniform vec2 uViewport;
-uniform vec2 uCamera;
+uniform vec2 uViewportSize;
+uniform vec2 uCameraPos;
 uniform float uZoom;
 
 out vec3 vColor;
@@ -16,7 +16,7 @@ out float vMass;
 
 void main() {
     // 10-Level Logarithmic Scale
-    // Base radius = 8.0 (at mass 1)
+    // Base radius = 8.0 (at mass 1) -> effectively 2 * uCellSize (if 4.0)
     // Max radius = 80.0 (at mass 1000+)
     float radius = 8.0 * (1.0 + log(aMass) * 1.5); 
     
@@ -28,10 +28,10 @@ void main() {
     vec2 worldPos = aWorldPos + offset;
 
     // Camera Transform
-    vec2 viewPos = (worldPos - uCamera) * uZoom;
+    vec2 viewPos = (worldPos - uCameraPos) * uZoom;
     
     // Map to NDC [-1, 1]
-    vec2 ndc = viewPos / (uViewport * 0.5);
+    vec2 ndc = viewPos / (uViewportSize * 0.5);
 
     gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 
