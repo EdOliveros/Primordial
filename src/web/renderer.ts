@@ -286,7 +286,10 @@ export class PrimordialRenderer {
     }
 
     public resize(w: number, h: number) {
+        if (w <= 0 || h <= 0) return;
+
         const gl = this.gl;
+        gl.viewport(0, 0, w, h);
 
         // Re-create textures if size changed
         if (this.sceneTex) gl.deleteTexture(this.sceneTex);
@@ -299,6 +302,13 @@ export class PrimordialRenderer {
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.sceneTex, 0);
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, this.glowTex, 0);
         gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+
+        // Check FBO status
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        if (status !== gl.FRAMEBUFFER_COMPLETE) {
+            console.error("Framebuffer/Resize Error:", status);
+        }
+
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
     private drawWorldBoundary(_viewportSize: [number, number], _cameraPos: [number, number], _zoom: number) {

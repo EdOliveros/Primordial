@@ -41,13 +41,33 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 for (let entry of entries) {
                     const width = entry.contentRect.width;
                     const height = entry.contentRect.height;
-                    controller.resize(width, height);
+                    // Ensure non-zero dimensions
+                    if (width > 0 && height > 0) {
+                        controller.resize(width, height);
+                    }
                 }
             });
 
             if (canvasRef.current.parentElement) {
                 resizeObserver.observe(canvasRef.current.parentElement);
             }
+
+            // Handle WebGL Context Loss (Rescue)
+            const handleContextLost = (e: Event) => {
+                e.preventDefault();
+                console.warn("WebGL Context Lost. Attempting restore...");
+                controller.stop();
+            };
+
+            const handleContextRestored = () => {
+                console.log("WebGL Context Restored. Restarting...");
+                // In a full app, we might need to re-init resources here.
+                // For now, ensuring the page/canvas survives is key.
+                window.location.reload(); // Quickest rescue for this prototype
+            };
+
+            canvasRef.current.addEventListener('webglcontextlost', handleContextLost);
+            canvasRef.current.addEventListener('webglcontextrestored', handleContextRestored);
 
             // Keyboard tracking for Space and WASD/Arrow navigation
             const handleKeyDown = (e: KeyboardEvent) => {
