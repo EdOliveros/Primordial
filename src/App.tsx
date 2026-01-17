@@ -1,3 +1,9 @@
+import React, { useState, useRef, useEffect } from 'react';
+import GameCanvas from './components/GameCanvas';
+import UIOverlay from './components/UIOverlay';
+import InfoPanel from './components/InfoPanel';
+import StartScreen from './components/StartScreen';
+import { SimulationController, Telemetry } from './core/SimulationController';
 import EventLog, { GameEvent } from './components/EventLog';
 
 const App: React.FC = () => {
