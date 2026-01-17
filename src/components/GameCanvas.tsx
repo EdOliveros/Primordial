@@ -153,9 +153,10 @@ const GameCanvas: React.FC<GameCanvasProps> = React.memo(({
                 width: '100vw',
                 height: '100vh',
                 display: 'block',
-                cursor: 'crosshair',
-                zIndex: 0,
-                background: '#000'
+                zIndex: 1, // Explicit Z-Index per request
+                background: '#000', // Ensure background
+                imageRendering: 'pixelated', // Stabilize rendering
+                // 'crisp-edges' is non-standard but 'pixelated' covers most 
             }}
         />
     );

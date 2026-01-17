@@ -405,8 +405,9 @@ export class Engine {
             // --- COLOSTY SYSTEM: 10-Level Logarithmic Growth ---
             const nMass = this.storage.cells[neighborIdx * this.storage.stride + 6];
             const myMass = this.storage.cells[idx * this.storage.stride + 6];
-            const nArch = this.storage.cells[neighborIdx * this.storage.stride + 5];
-            const myArch = this.storage.cells[idx * this.storage.stride + 5];
+            // Unused but kept for potential future logic adjustments
+            // const _nArch = this.storage.cells[neighborIdx * this.storage.stride + 5];
+            // const _myArch = this.storage.cells[idx * this.storage.stride + 5];
 
             // 1. Absorption (The Blob Logic)
             // Rule: Bigger eats Smaller (REQUIRE 30% ADVANTAGE)

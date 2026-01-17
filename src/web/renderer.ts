@@ -27,6 +27,9 @@ export class PrimordialRenderer {
         const width = viewportSize[0];
         const height = viewportSize[1];
 
+        // --- 0. SAFETY CHECK ---
+        if (width <= 0 || height <= 0) return;
+
         // --- 1. STRICT FRAME START ---
         ctx.save();
 
