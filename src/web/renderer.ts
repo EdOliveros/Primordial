@@ -165,9 +165,7 @@ export class PrimordialRenderer {
         // Pre-allocate buffer for visible cells (max 100k cells)
         this.visibleBuffer = new Float32Array(100000 * this.STRIDE);
 
-        this.program = this.createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
-        this.bloomProgram = this.createProgram(BLOOM_VERTEX, BLOOM_FRAGMENT);
-
+        this.initPrograms(); // Call the new initPrograms method
         this.initBuffers();
         this.initFBO();
     }
@@ -455,12 +453,14 @@ export class PrimordialRenderer {
         }
 
         if (lineCount > 0) {
-            gl.useProgram(this.lineProgram);
+            gl.useProgram(this.allianceProgram);
             gl.bindVertexArray(this.lineVAO);
 
-            gl.uniform2f(gl.getUniformLocation(this.lineProgram, "uViewport"), viewportSize[0], viewportSize[1]);
-            gl.uniform2f(gl.getUniformLocation(this.lineProgram, "uCamera"), cameraPos[0], cameraPos[1]);
-            gl.uniform1f(gl.getUniformLocation(this.lineProgram, "uZoom"), zoom);
+            // Uniforms
+            const uRes = gl.getUniformLocation(this.allianceProgram, 'uResolution');
+            gl.uniform2f(gl.getUniformLocation(this.allianceProgram, "uViewport"), viewportSize[0], viewportSize[1]);
+            gl.uniform2f(gl.getUniformLocation(this.allianceProgram, "uCamera"), cameraPos[0], cameraPos[1]);
+            gl.uniform1f(gl.getUniformLocation(this.allianceProgram, "uZoom"), zoom);
 
             gl.bindBuffer(gl.ARRAY_BUFFER, this.lineBuffer);
             gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.lineData.subarray(0, dPtr));
