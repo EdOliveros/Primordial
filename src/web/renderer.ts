@@ -58,16 +58,19 @@ void main() {
     float sizeMult = max(1.0, log2(aMass)); // Scale size logarithmically with mass
     vec2 pos = aQuadPos * uCellSize * uZoom * sizeMult + viewPos;
     vec2 ndc = pos / (uViewportSize * 0.5); 
-    gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
+    // float sizeMult = max(1.0, log2(aMass)); // Scale size logarithmically with mass
+    // vec2 pos = aQuadPos * uCellSize * uZoom * sizeMult + viewPos;
+    // vec2 ndc = pos / (uViewportSize * 0.5); 
+    // gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
 }
 `;
 
 export const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
-in vec4 vColor;
+in vec3 vColor;
 in float vGlow;
-in vec2 vQuadPos;
 in float vMass;
+in vec2 viewPosDebug; // Not used but kept for interface matching if needed
 
 uniform float uTime;
 
@@ -77,42 +80,50 @@ layout(location = 1) out vec4 outGlow;
 float hash(float n) { return fract(sin(n) * 43758.5453123); }
 
 void main() {
-    float dist = length(vQuadPos);
+    float dist = length(gl_PointCoord - vec2(0.5)) * 2.0; // 0.0 to 1.0 (Unit Circle)
+    if (dist > 1.0) discard;
+
     float alpha = 1.0;
+    vec3 finalColor = vColor;
+    float finalGlow = vGlow;
+
+    // --- TIER SYSTEM ---
     
-    // Swarm Visualization for Colonies (Mass > 2.0)
-    if (vMass > 2.0) {
-        // Procedural Swarm: Orbiting particles
-        float swarm = 0.0;
-        float core = smoothstep(0.4, 0.0, dist); // Central core
+    // TIER 3: APEX ENTITY (Mass > 500)
+    if (vMass > 500.0) {
+        // Pulsing Core
+        float pulse = 0.8 + 0.2 * sin(uTime * 3.0);
+        float core = smoothstep(0.5 * pulse, 0.0, dist);
         
-        // Generate orbiting particles
-        for(float i = 0.0; i < 5.0; i++) {
-            float seed = i + vMass; // Unique per mass
-            float speed = 2.0 + hash(seed) * 3.0; // Random speed
-            float radius = 0.4 + sin(uTime * speed + seed) * 0.2; // Pulsing radius
-            float angle = uTime * (speed * 0.5) + (i * 1.25); // Angular movement
-            
-            vec2 particlePos = vec2(cos(angle), sin(angle)) * radius;
-            float particleDist = length(vQuadPos - particlePos);
-            float particle = smoothstep(0.15, 0.0, particleDist);
-            swarm += particle;
-        }
-        
-        float pattern = core + swarm;
-        alpha = smoothstep(0.1, 0.9, pattern);
-        
-        // Boost intensity for colonies
-        outColor = vec4(vColor.rgb * (1.2 + swarm), alpha);
-        outGlow = vec4(vColor.rgb, vGlow + swarm * 0.5); // Add bloom to particles
-    
-    } else {
-        // Simple cell rendering (Soft Circle)
-        float delta = fwidth(dist);
-        alpha = 1.0 - smoothstep(1.0 - delta, 1.0, dist);
-        outColor = vec4(vColor.rgb, alpha);
-        outGlow = vec4(vColor.rgb * vGlow, alpha);
+        // Orbiting Energy
+        float orbit = 0.0;
+        float angle = atan(gl_PointCoord.y - 0.5, gl_PointCoord.x - 0.5);
+        float spirals = sin(angle * 5.0 + uTime * 2.0 - dist * 10.0);
+        orbit = smoothstep(0.1, 0.0, abs(dist - 0.7 + spirals * 0.1));
+
+        alpha = core + orbit;
+        finalColor = mix(vColor, vec3(1.0, 1.0, 1.0), orbit); // White spirals
+        finalGlow = 1.0; // Max Glow
     }
+    // TIER 2: FORTRESS (Mass 50 - 500)
+    else if (vMass > 50.0) {
+        // Solid Core + Thick Membrane
+        float core = smoothstep(0.6, 0.55, dist);
+        float border = smoothstep(0.8, 0.75, dist) - smoothstep(0.65, 0.6, dist);
+        
+        alpha = core + border;
+        finalColor = mix(vColor, vec3(1.0), border * 0.5); // Lighter border
+        finalGlow = 0.8;
+    }
+    // TIER 1: COLONY / CELL (Mass < 50)
+    else {
+        // Soft Circle
+        alpha = smoothstep(1.0, 0.8, dist);
+        finalGlow = 0.5;
+    }
+
+    outColor = vec4(finalColor, alpha);
+    outGlow = vec4(finalColor * finalGlow, alpha);
 
     if (alpha < 0.01) discard;
 }

@@ -82,6 +82,26 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
                         <div className="metric"><span className="label">Salud</span><span className="value" style={{ color: 'var(--neon-red)' }}>100%</span></div>
                     </div>
 
+                    {/* Evolution Level Progress (Only for Colonies) */}
+                    {inspectedCell.mass > 2.0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <div className="label">Nivel de Evolución</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '5px' }}>
+                                <span>Lvl {Math.min(10, Math.ceil(Math.log10(inspectedCell.mass) * 3))}</span>
+                                <span style={{ opacity: 0.7 }}>Masa: {inspectedCell.mass.toFixed(1)}</span>
+                            </div>
+                            <div className="gene-bar-track">
+                                <div
+                                    className="gene-bar-fill"
+                                    style={{
+                                        width: `${Math.min(100, (Math.log10(inspectedCell.mass) * 3 % 1) * 100)}%`,
+                                        background: 'linear-gradient(90deg, #f0f, #0ff)'
+                                    }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="label" style={{ marginBottom: '10px' }}>Secuencia Genética</div>
                     <div className="dna-list">
                         {inspectedCell.genome.map((val: number, i: number) => (

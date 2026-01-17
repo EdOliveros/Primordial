@@ -651,6 +651,7 @@ export class Engine {
             x: this.storage.getX(idx),
             y: this.storage.getY(idx),
             energy: this.storage.getEnergy(idx),
+            mass: this.storage.cells[idx * this.storage.stride + 6], // Add mass
             genome: Array.from(this.storage.getGenome(idx)),
             generation: this.storage.generations[idx]
         };
