@@ -39,7 +39,10 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry }) => {
             </button>
 
             <div className="panel-content">
-                <h2>Guía de Especies</h2>
+                <div className="panel-header-row">
+                    <h2>Guía de Especies</h2>
+                    <button className="panel-close-btn" onClick={() => setIsOpen(false)}>✕</button>
+                </div>
 
                 <div className="chart-container">
                     <div className="pie-chart" style={{ background: total > 0 ? `conic-gradient(${gradient})` : '#333' }}>

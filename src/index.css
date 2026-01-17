@@ -195,29 +195,59 @@ input[type="range"]::-webkit-slider-thumb:hover {
     height: 40px;
     background: var(--bg-blur);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    /* Circle looks more modern */
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
     font-size: 1.2rem;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 2000;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
     backdrop-filter: blur(10px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .panel-toggle-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.15);
     color: #fff;
-    transform: scale(1.05);
+    transform: scale(1.1);
 }
 
 .panel-toggle-btn.active {
     background: var(--neon-blue);
     color: #000;
     border-color: var(--neon-blue);
-    box-shadow: 0 0 15px var(--neon-blue);
+    box-shadow: 0 0 20px var(--neon-blue);
+}
+
+.panel-close-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.2s;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.panel-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.panel-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
 }
 
 .footer-credits {
@@ -248,19 +278,24 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* --- GOD DASHBOARD --- */
 #dashboard {
     position: absolute;
-    top: 20px;
+    top: 80px;
+    /* Below the toggle button */
     left: 20px;
-    width: 320px;
-    background: var(--bg-blur);
-    backdrop-filter: blur(15px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-left: 4px solid var(--neon-blue);
+    width: 300px;
+    background: rgba(15, 15, 25, 0.7);
+    backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(0, 242, 255, 0.3);
+    /* Blue top highlight */
+    border-left: 0;
+    /* Remove old border-left */
     padding: 20px;
-    border-radius: 6px;
+    border-radius: 16px;
     pointer-events: none;
     z-index: 100;
     opacity: 0;
     transition: opacity 0.8s;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 #dashboard.visible {
@@ -461,53 +496,46 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* --- INFO PANEL --- */
 .info-panel {
     position: absolute;
-    top: 20px;
+    top: 80px;
+    /* Below the toggle button */
     right: 20px;
-    width: 320px;
+    width: 300px;
     max-height: calc(100% - 140px);
-    background: var(--bg-blur);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    background: rgba(15, 15, 25, 0.7);
+    /* More transparent */
+    backdrop-filter: blur(25px);
+    /* Stronger blur */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    /* Top light highlight */
+    border-radius: 16px;
+    /* Larger radius */
     z-index: 1000;
     transform: translateX(calc(100% + 40px));
-    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
     display: flex;
     flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 .info-panel.open {
     transform: translateX(0);
 }
 
-.panel-toggle {
-    position: absolute;
-    left: -50px;
-    top: 0;
-    width: 40px;
-    height: 40px;
-    background: var(--bg-blur);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: white;
-    cursor: pointer;
-    font-size: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+/* Remove old panel-toggle styles as we use .panel-toggle-btn now */
 
 .panel-content {
-    padding: 25px;
+    padding: 20px;
     overflow-y: auto;
 }
 
 .panel-content h2 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: var(--neon-blue);
-    margin: 0 0 25px 0;
+    margin: 0;
     text-transform: uppercase;
     letter-spacing: 2px;
+    font-weight: 700;
 }
 
 .chart-container {

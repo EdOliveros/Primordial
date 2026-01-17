@@ -34,7 +34,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
             </button>
 
             <div id="dashboard" className={`visible ${isOpen ? 'open' : 'closed'}`} style={{ pointerEvents: 'auto', transform: isOpen ? 'translateX(0)' : 'translateX(-120%)', transition: 'transform 0.3s ease' }}>
-                <div className="header"><span>God Mode Console</span><span>GEN. {telemetry?.generation || 0}</span></div>
+                <div className="header">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        <span>God Mode Console</span>
+                        <button className="panel-close-btn" onClick={() => setIsOpen(false)}>✕</button>
+                    </div>
+                </div>
+                <div className="sub-header" style={{ marginBottom: '15px', fontSize: '0.7rem', opacity: 0.7 }}>GEN. {telemetry?.generation || 0}</div>
                 <div className="metric-group">
                     <div className="metric"><span className="label">Population</span><span className="value">{telemetry?.alive.toLocaleString() || 0}</span></div>
                     <div className="metric"><span className="label">Births</span><span className="value" style={{ color: 'var(--neon-green)' }}>{telemetry?.births.toLocaleString() || 0}</span></div>
