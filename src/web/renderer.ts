@@ -372,8 +372,19 @@ export class PrimordialRenderer {
         // 1. Scene Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+        // CLEAR BACKGROUND
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // DEBUG: EMERGENCY GREEN SQUARE (Verifies Context)
+        gl.enable(gl.SCISSOR_TEST);
+        const centerX = gl.canvas.width / 2;
+        const centerY = gl.canvas.height / 2;
+        gl.scissor(centerX - 50, centerY - 50, 100, 100);
+        gl.clearColor(0.0, 1.0, 0.0, 1.0); // Bright Green
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.disable(gl.SCISSOR_TEST); // Restore normal rendering
 
         gl.useProgram(this.program);
         gl.bindVertexArray(this.quadVAO);

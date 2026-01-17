@@ -232,51 +232,61 @@ export class SimulationController {
     private loop = () => {
         if (!this.isSimulationRunning) return;
 
+        // HEARTBEAT LOG (Every 100 frames)
+        if (this.frameCount % 100 === 0) {
+            console.log(`--- Loop Corriendo (Frame ${this.frameCount}) ---`);
+            console.log(`Camera: ${this.cameraPos[0].toFixed(1)}, ${this.cameraPos[1].toFixed(1)} Zoom: ${this.zoom}`);
+            console.log(`Entities: ${this.engine.storage.activeCount}`);
+        }
+
+        // FORCE CAMERA RESET (Debug)
+        // this.cameraPos = [500, 500]; 
+        // this.zoom = 1.0;
+
         const now = performance.now();
         const dt = Math.min(0.016, (now - this.lastTime) / 1000);
         this.lastTime = now;
 
         this.frameCount++;
-        this.onFrame(this.frameCount);
+        try {
+            this.onFrame(this.frameCount);
+        } catch (e) { console.error("Error in onFrame:", e); }
 
         this.fpsFrames++;
-        if (now > this.fpsTime + 500) { // Update FPS 2x per second
-            this.onFPS(this.fpsFrames * 2); // Multiply by 2 since we're measuring half-second intervals
+        if (now > this.fpsTime + 500) {
+            this.onFPS(this.fpsFrames * 2);
             this.fpsFrames = 0;
             this.fpsTime = now;
         }
 
-        // Update keyboard-based camera movement
         this.updateKeyboardMovement();
 
-        // Zoom logic removed
+        try {
+            // 1. Step Simulation
+            this.engine.update(dt);
 
-        // 1. Step Simulation on CPU (Optimized AOS Buffer)
-        this.engine.update(dt);
-
-        // 2. Render via WebGL Instanced Attributes (Step 2)
-        // Passes the CPU-side cells buffer directly for a single draw call.
-        this.renderer.render(
-            [this.canvas.width, this.canvas.height],
-            this.engine.storage.cells,
-            this.engine.storage.maxCells,
-            this.cameraPos,
-            this.zoom,
-            this.engine.storage.allianceId
-        );
-
-        // 3. UI Updates (throttled to 2x per second)
-        if (this.frameCount % 30 === 0) { // Check frequently for smoother events
-            const tel = this.engine.getTelemetry();
-
-            // Check Milestones (every ~0.5s)
-            if (this.frameCount % 300 === 0) { // Every ~5s to avoid spam
-                this.checkMilestones(tel);
+            // 2. Render
+            if (this.renderer) {
+                this.renderer.render(
+                    [this.canvas.width, this.canvas.height],
+                    this.engine.storage.cells,
+                    this.engine.storage.maxCells,
+                    this.cameraPos,
+                    this.zoom,
+                    this.engine.storage.allianceId
+                );
             }
+        } catch (e) {
+            console.error("CRITICAL ERROR IN LOOP:", e);
+        }
 
-            if (this.frameCount % 120 === 0) {
-                this.onTelemetry(tel);
-            }
+        // 3. UI Updates
+        if (this.frameCount % 30 === 0) {
+            try {
+                const tel = this.engine.getTelemetry();
+                if (this.frameCount % 300 === 0) this.checkMilestones(tel);
+                if (this.frameCount % 120 === 0) this.onTelemetry(tel);
+            } catch (e) { console.error("Error in UI/Telemetry:", e); }
         }
 
         this.animationFrameId = requestAnimationFrame(this.loop);
