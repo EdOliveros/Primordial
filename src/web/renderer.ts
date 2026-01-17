@@ -22,7 +22,8 @@ export class PrimordialRenderer {
         cameraPos: [number, number],
         zoom: number,
         _allianceId: Int32Array | undefined,
-        isActive: Uint8Array // New parameter
+        isActive: Uint8Array,
+        cooldowns?: Float32Array // New debug param
     ) {
         const ctx = this.ctx;
         const width = viewportSize[0];
@@ -153,6 +154,15 @@ export class PrimordialRenderer {
                     ctx.fillStyle = '#ffffff';
                     ctx.fill();
                 }
+            }
+
+            // --- DEBUG: NEW REGISTRATION FLASH (Rescate) ---
+            if (cooldowns && cooldowns[i] > 2.8) {
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(x, y, visualRadius + 15, 0, Math.PI * 2);
+                ctx.stroke();
             }
 
             ctx.closePath();

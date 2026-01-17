@@ -271,9 +271,10 @@ export class Engine {
         let maxEnergy = -1;
 
         // Calculate centroid and total properties
-        clusterIndices.forEach(idx => {
+        // Calculate centroid and total properties
+        validIndices.forEach(idx => {
             const offset = idx * this.storage.stride;
-            const mass = this.storage.cells[offset + 6]; // Mass is at offset 6
+            const mass = this.storage.cells[offset + 6];
             const energy = this.storage.cells[offset + 4];
 
             totalMass += mass;
@@ -292,8 +293,15 @@ export class Engine {
 
         if (!bestGenome) return;
 
-        avgX /= clusterIndices.length;
-        avgY /= clusterIndices.length;
+        avgX /= validIndices.length;
+        avgY /= validIndices.length;
+
+        // Validation: Ensure inside bounds
+        avgX = Math.max(0, Math.min(this.worldSize, avgX));
+        avgY = Math.max(0, Math.min(this.worldSize, avgY));
+
+        // Validation: Force Minimum Mass
+        totalMass = Math.max(totalMass, 10.0);
 
         // Spawn Super-Entity (Colony)
         const newIdx = this.storage.spawn(avgX, avgY, bestGenome);

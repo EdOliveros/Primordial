@@ -300,7 +300,8 @@ export class SimulationController {
                     this.cameraPos,
                     this.zoom,
                     this.engine.storage.allianceId,
-                    this.engine.storage.isActive // Pass isActive for strict filtering
+                    this.engine.storage.isActive, // Pass isActive for strict filtering
+                    this.engine.storage.cooldowns // Pass cooldowns for debug visuals
                 );
             }
         } catch (e) {
