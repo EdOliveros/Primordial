@@ -33,7 +33,6 @@ export class GodMode {
      * Virus cells have flag in metadata (stats[3] = 999).
      */
     injectViralStrain(count: number = 50) {
-        console.log(`GOD MODE: Injecting Viral Strain (${count} cells)...`);
         const viralDNA = new Float32Array(8).fill(0.0);
         viralDNA[0] = 1.0; // Max speed
         viralDNA[1] = 1.0; // Max agg
