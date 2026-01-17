@@ -288,6 +288,9 @@ export class PrimordialRenderer {
 
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, visibleCount);
 
+        // Draw world boundary (1000x1000)
+        this.drawWorldBoundary(viewportSize, cameraPos, zoom);
+
         // 2. Final / Bloom Addition Pass
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
