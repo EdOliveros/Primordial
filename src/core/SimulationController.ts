@@ -76,7 +76,6 @@ export class SimulationController {
 
     public setCameraPos(x: number, y: number) {
         this.cameraPos = [x, y];
-        this.targetZoom = this.zoom;
     }
 
     public pan(dx: number, dy: number) {
@@ -128,13 +127,11 @@ export class SimulationController {
     public follow() {
         if (this.inspectedCell) {
             this.followingIdx = this.inspectedCell.idx;
-            this.targetZoom = 4.0;
         }
     }
 
     public dismissInspector() {
         this.followingIdx = null;
-        this.targetZoom = 1.0;
         this.inspectedCell = null;
     }
 

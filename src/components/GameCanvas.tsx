@@ -127,7 +127,6 @@ return (
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
         onContextMenu={(e) => e.preventDefault()}
         style={{
             position: 'fixed',
