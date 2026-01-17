@@ -14,6 +14,8 @@ uniform float uCellSize;
 
 out vec4 vColor;
 out float vGlow;
+out vec2 vQuadPos;
+out float vMass;
 
 void main() {
     // 1. Frustum Culling & Activity Check
@@ -44,6 +46,8 @@ void main() {
 
     vColor = vec4(color, 1.0);
     vGlow = glow;
+    vQuadPos = aQuadPos;
+    vMass = aMass;
     
     // 3. Transform
     float sizeMult = max(1.0, log2(aMass)); // Scale size logarithmically with mass
@@ -57,11 +61,55 @@ export const FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 in vec4 vColor;
 in float vGlow;
+in vec2 vQuadPos;
+in float vMass;
+
+uniform float uTime;
+
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outGlow;
+
+float hash(float n) { return fract(sin(n) * 43758.5453123); }
+
 void main() {
-    outColor = vColor;
-    outGlow = vColor * vGlow;
+    float dist = length(vQuadPos);
+    float alpha = 1.0;
+    
+    // Swarm Visualization for Colonies (Mass > 2.0)
+    if (vMass > 2.0) {
+        // Procedural Swarm: Orbiting particles
+        float swarm = 0.0;
+        float core = smoothstep(0.4, 0.0, dist); // Central core
+        
+        // Generate orbiting particles
+        for(float i = 0.0; i < 5.0; i++) {
+            float seed = i + vMass; // Unique per mass
+            float speed = 2.0 + hash(seed) * 3.0; // Random speed
+            float radius = 0.4 + sin(uTime * speed + seed) * 0.2; // Pulsing radius
+            float angle = uTime * (speed * 0.5) + (i * 1.25); // Angular movement
+            
+            vec2 particlePos = vec2(cos(angle), sin(angle)) * radius;
+            float particleDist = length(vQuadPos - particlePos);
+            float particle = smoothstep(0.15, 0.0, particleDist);
+            swarm += particle;
+        }
+        
+        float pattern = core + swarm;
+        alpha = smoothstep(0.1, 0.9, pattern);
+        
+        // Boost intensity for colonies
+        outColor = vec4(vColor.rgb * (1.2 + swarm), alpha);
+        outGlow = vec4(vColor.rgb, vGlow + swarm * 0.5); // Add bloom to particles
+    
+    } else {
+        // Simple cell rendering (Soft Circle)
+        float delta = fwidth(dist);
+        alpha = 1.0 - smoothstep(1.0 - delta, 1.0, dist);
+        outColor = vec4(vColor.rgb, alpha);
+        outGlow = vec4(vColor.rgb * vGlow, alpha);
+    }
+
+    if (alpha < 0.01) discard;
 }
 `;
 
@@ -297,6 +345,7 @@ export class PrimordialRenderer {
         gl.uniform2f(gl.getUniformLocation(this.program, "uCameraPos"), cameraPos[0], cameraPos[1]);
         gl.uniform1f(gl.getUniformLocation(this.program, "uZoom"), zoom);
         gl.uniform1f(gl.getUniformLocation(this.program, "uCellSize"), 4.0);
+        gl.uniform1f(gl.getUniformLocation(this.program, "uTime"), performance.now() / 1000.0);
 
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, visibleCount);
 
