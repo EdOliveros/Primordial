@@ -72,18 +72,35 @@ const App: React.FC = () => {
             {!isRunning ? (
                 <StartScreen onStart={handleStart} />
             ) : (
-                <div style={{ opacity: uiVisible ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: uiVisible ? 'auto' : 'none' }}>
-                    <UIOverlay
-                        telemetry={telemetry}
-                        fps={fps}
-                        frameCount={frameCount}
-                        inspectedCell={inspectedCell}
-                        isSimulationRunning={isRunning}
-                        onStart={handleStart}
-                        onFollow={handleFollow}
-                        onDismiss={handleDismiss}
-                    />
-                    <InfoPanel telemetry={telemetry} />
+                <div style={{
+                    opacity: uiVisible ? 1 : 0,
+                    transition: 'opacity 0.3s ease',
+                    pointerEvents: 'none', // Allow clicks to pass through to Canvas
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    zIndex: 10
+                }}>
+                    <div style={{ pointerEvents: 'auto' }}>
+                        <UIOverlay
+                            telemetry={telemetry}
+                            fps={fps}
+                            frameCount={frameCount}
+                            inspectedCell={inspectedCell}
+                            isSimulationRunning={isRunning}
+                            onStart={handleStart}
+                            onFollow={handleFollow}
+                            onDismiss={handleDismiss}
+                        />
+                    </div>
+
+                    <div style={{ pointerEvents: 'auto' }}>
+                        <InfoPanel telemetry={telemetry} />
+                    </div>
+
+                    {/* Event Log receives no pointer events (click-through) */}
                     <EventLog events={events} />
                 </div>
             )}
