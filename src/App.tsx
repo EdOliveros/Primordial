@@ -11,8 +11,20 @@ const App: React.FC = () => {
     const [frameCount, setFrameCount] = useState(0);
     const [inspectedCell, setInspectedCell] = useState<any | null>(null);
     const [isRunning, setIsRunning] = useState(false);
+    const [uiVisible, setUiVisible] = useState(true);
 
     const controllerRef = useRef<SimulationController | null>(null);
+
+    // Global Key Listener for "Cinematic Mode"
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key.toLowerCase() === 'h') {
+                setUiVisible(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
     const handleStart = (settings: { count: number, mutation: number, food: number, friction: number }) => {
         if (controllerRef.current) {
@@ -43,7 +55,7 @@ const App: React.FC = () => {
             {!isRunning ? (
                 <StartScreen onStart={handleStart} />
             ) : (
-                <>
+                <div style={{ opacity: uiVisible ? 1 : 0, transition: 'opacity 0.3s ease', pointerEvents: uiVisible ? 'auto' : 'none' }}>
                     <UIOverlay
                         telemetry={telemetry}
                         fps={fps}
@@ -55,7 +67,7 @@ const App: React.FC = () => {
                         onDismiss={handleDismiss}
                     />
                     <InfoPanel telemetry={telemetry} />
-                </>
+                </div>
             )}
         </div>
     );

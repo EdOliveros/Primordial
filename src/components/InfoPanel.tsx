@@ -29,9 +29,13 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry }) => {
     }).join(', ');
 
     return (
-        <div className={`info-panel ${isOpen ? 'open' : ''}`}>
-            <button className="panel-toggle" onClick={() => setIsOpen(!isOpen)}>
-                {isOpen ? '✕' : 'ℹ️'}
+        <div className={`info-panel ${isOpen ? 'open' : ''}`} style={{ pointerEvents: 'auto' }}>
+            <button
+                className={`panel-toggle-btn ${isOpen ? 'active' : ''}`}
+                style={{ top: '0', left: '-50px', background: 'var(--bg-blur)' }}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                {isOpen ? '✕' : '📖'}
             </button>
 
             <div className="panel-content">

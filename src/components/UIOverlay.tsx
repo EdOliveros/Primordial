@@ -21,10 +21,19 @@ const UIOverlay: React.FC<UIOverlayProps> = ({
     onDismiss
 }) => {
     const GENE_LABELS = ["SPD", "AGG", "PHO", "SIZ", "DEF", "VIS", "MUT", "LIF"];
+    const [isOpen, setIsOpen] = React.useState(false); // Default hidden
 
     return (
         <>
-            <div id="dashboard" className="visible" style={{ pointerEvents: 'auto' }}>
+            <button
+                className={`panel-toggle-btn ${isOpen ? 'active' : ''}`}
+                style={{ top: '20px', left: '20px' }}
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                {isOpen ? '✕' : '📊'}
+            </button>
+
+            <div id="dashboard" className={`visible ${isOpen ? 'open' : 'closed'}`} style={{ pointerEvents: 'auto', transform: isOpen ? 'translateX(0)' : 'translateX(-120%)', transition: 'transform 0.3s ease' }}>
                 <div className="header"><span>God Mode Console</span><span>GEN. {telemetry?.generation || 0}</span></div>
                 <div className="metric-group">
                     <div className="metric"><span className="label">Population</span><span className="value">{telemetry?.alive.toLocaleString() || 0}</span></div>
