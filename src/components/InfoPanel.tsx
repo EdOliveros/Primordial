@@ -68,6 +68,45 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ telemetry }) => {
                         );
                     })}
                 </div>
+
+                <h2 style={{ marginTop: '30px' }}>Dominación Genética</h2>
+                <div className="glossary-list">
+                    <div className="glossary-item">
+                        <div className="glossary-header">
+                            <span style={{ color: 'var(--neon-green)' }}>Adaptabilidad</span>
+                            <small>Eficiencia</small>
+                        </div>
+                        <div className="glossary-bar"><div className="glossary-fill" style={{ width: '85%', background: 'var(--neon-green)' }}></div></div>
+                        <p className="glossary-desc">Capacidad de sobrevivir con menos energía. Maestros del ahorro metabólico.</p>
+                    </div>
+
+                    <div className="glossary-item">
+                        <div className="glossary-header">
+                            <span style={{ color: 'var(--neon-red)' }}>Agresividad</span>
+                            <small>Combate</small>
+                        </div>
+                        <div className="glossary-bar"><div className="glossary-fill" style={{ width: '90%', background: 'var(--neon-red)' }}></div></div>
+                        <p className="glossary-desc">Fuerza para robar masa a otros. Indicador clave de depredadores.</p>
+                    </div>
+
+                    <div className="glossary-item">
+                        <div className="glossary-header">
+                            <span style={{ color: 'var(--neon-purple)' }}>Sociabilidad</span>
+                            <small>Alianzas</small>
+                        </div>
+                        <div className="glossary-bar"><div className="glossary-fill" style={{ width: '75%', background: 'var(--neon-purple)' }}></div></div>
+                        <p className="glossary-desc">Velocidad para formar colonias y alianzas defensivas.</p>
+                    </div>
+
+                    <div className="glossary-item">
+                        <div className="glossary-header">
+                            <span style={{ color: 'var(--neon-blue)' }}>Resiliencia</span>
+                            <small>Recuperación</small>
+                        </div>
+                        <div className="glossary-bar"><div className="glossary-fill" style={{ width: '80%', background: 'var(--neon-blue)' }}></div></div>
+                        <p className="glossary-desc">Tasa de regeneración de masa tras fragmentación o ataques.</p>
+                    </div>
+                </div>
             </div>
         </div>
     );

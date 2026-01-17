@@ -538,6 +538,56 @@ input[type="range"]::-webkit-slider-thumb:hover {
     font-weight: 700;
 }
 
+.glossary-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.glossary-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glossary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    font-weight: bold;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+}
+
+.glossary-header small {
+    opacity: 0.5;
+    font-size: 0.65rem;
+}
+
+.glossary-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.glossary-fill {
+    height: 100%;
+    box-shadow: 0 0 10px currentColor;
+    /* Glows with its own color */
+}
+
+.glossary-desc {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin: 0;
+    line-height: 1.3;
+}
+
 .chart-container {
     display: flex;
     justify-content: center;
